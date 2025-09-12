@@ -1,7 +1,6 @@
 package analizadores;
 
 import java_cup.runtime.*;
-import modelos.Token;
 
 %%
 
@@ -25,16 +24,16 @@ import modelos.Token;
 LineTerminator = \r|\n|\r\n
 WhiteSpace = {LineTerminator} | [ \t\f]
 
-Comment = "//" [^\r\n]* | "/*" [^*] ~"*/" | "/*" "*"+ "/"
+Comment = "//"[^\r\n]* | "/*"([^*]|[\r\n]|("*"+([^*/]|[\r\n])))*"*"+"/"
 
 Identifier = [a-zA-Z_][a-zA-Z0-9_]*
 String = \"([^\"\\]|\\.)*\"
-Character = '[^']'
+Character = \'([^\'\\]|\\.)\'
 
 %%
 
 <YYINITIAL> {
-    // Palabras reservadas
+    // Palabras reservadas y etiquetas
     "<AFD"                 { return symbol(sym.AFD_INI); }
     "</AFD>"               { return symbol(sym.AFD_FIN); }
     "<AP"                  { return symbol(sym.AP_INI); }
@@ -66,23 +65,28 @@ Character = '[^']'
     {Identifier}           { return symbol(sym.IDENTIFICADOR, yytext()); }
     {String}               { 
         String content = yytext().substring(1, yytext().length()-1);
-        // Escapar caracteres especiales
-        content = content.replace("\\\"", "\"").replace("\\\\", "\\");
+        content = content.replace("\\\"", "\"").replace("\\\\", "\\")
+                        .replace("\\n", "\n").replace("\\t", "\t")
+                        .replace("\\r", "\r");
         return symbol(sym.CADENA, content); 
     }
     {Character}            { 
-        char c = yytext().charAt(1);
-        if (c == '\\') {
-            // Manejar caracteres escapados
-            if (yytext().length() > 2) {
-                char escaped = yytext().charAt(2);
-                switch (escaped) {
-                    case 'n': c = '\n'; break;
-                    case 't': c = '\t'; break;
-                    case 'r': c = '\r'; break;
-                    default: c = escaped;
-                }
+        String charText = yytext();
+        char c;
+        if (charText.length() == 3) {
+            c = charText.charAt(1);
+        } else if (charText.charAt(1) == '\\') {
+            char escaped = charText.charAt(2);
+            switch (escaped) {
+                case 'n': c = '\n'; break;
+                case 't': c = '\t'; break;
+                case 'r': c = '\r'; break;
+                case '\\': c = '\\'; break;
+                case '\'': c = '\''; break;
+                default: c = escaped; break;
             }
+        } else {
+            c = charText.charAt(1);
         }
         return symbol(sym.CARACTER, c); 
     }
@@ -93,6 +97,7 @@ Character = '[^']'
 }
 
 [^] { 
-    System.err.println("Error léxico: Carácter no válido '" + yytext() + "' en línea " + (yyline+1) + ", columna " + (yycolumn+1));
+    System.err.println("Error léxico: Carácter no válido '" + yytext() + 
+                      "' en línea " + (yyline+1) + ", columna " + (yycolumn+1));
     return symbol(sym.error, yytext());
 }

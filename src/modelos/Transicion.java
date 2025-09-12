@@ -1,45 +1,87 @@
 package modelos;
 
 public abstract class Transicion {
-    // Clase base para transiciones
+    protected String origen;
+    protected String destino;
+    
+    public Transicion(String origen, String destino) {
+        this.origen = origen;
+        this.destino = destino;
+    }
+    
+    public String getOrigen() { return origen; }
+    public String getDestino() { return destino; }
+    
+    @Override
+    public abstract String toString();
 }
 
 class TransicionAFD extends Transicion {
-    private String origen;
     private char simbolo;
-    private String destino;
     
     public TransicionAFD(String origen, char simbolo, String destino) {
-        this.origen = origen;
+        super(origen, destino);
         this.simbolo = simbolo;
-        this.destino = destino;
     }
     
-    // Getters
-    public String getOrigen() { return origen; }
     public char getSimbolo() { return simbolo; }
-    public String getDestino() { return destino; }
+    
+    @Override
+    public String toString() {
+        return origen + " -> '" + simbolo + "', " + destino;
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof TransicionAFD)) return false;
+        TransicionAFD other = (TransicionAFD) obj;
+        return origen.equals(other.origen) && 
+               simbolo == other.simbolo && 
+               destino.equals(other.destino);
+    }
+    
+    @Override
+    public int hashCode() {
+        return origen.hashCode() + simbolo + destino.hashCode();
+    }
 }
 
 class TransicionAP extends Transicion {
-    private String origen;
     private char entrada;
     private char extrae;
-    private String destino;
     private char inserta;
     
     public TransicionAP(String origen, char entrada, char extrae, String destino, char inserta) {
-        this.origen = origen;
+        super(origen, destino);
         this.entrada = entrada;
         this.extrae = extrae;
-        this.destino = destino;
         this.inserta = inserta;
     }
     
-    // Getters
-    public String getOrigen() { return origen; }
     public char getEntrada() { return entrada; }
     public char getExtrae() { return extrae; }
-    public String getDestino() { return destino; }
     public char getInserta() { return inserta; }
+    
+    @Override
+    public String toString() {
+        return origen + " (" + entrada + ") -> (" + extrae + "), " + destino + " : (" + inserta + ")";
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof TransicionAP)) return false;
+        TransicionAP other = (TransicionAP) obj;
+        return origen.equals(other.origen) && 
+               entrada == other.entrada && 
+               extrae == other.extrae &&
+               destino.equals(other.destino) &&
+               inserta == other.inserta;
+    }
+    
+    @Override
+    public int hashCode() {
+        return origen.hashCode() + entrada + extrae + destino.hashCode() + inserta;
+    }
 }

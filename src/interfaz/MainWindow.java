@@ -11,243 +11,191 @@ import java_cup.runtime.Symbol;
 
 public class MainWindow extends JFrame {
     private EditorPanel editorPanel;
-    private JTextArea consola;
+    private ConsolePanel consolePanel;
     private JTabbedPane tabbedPane;
+    private JLabel statusLabel;
+    private JLabel positionLabel;
+    private File currentFile;
     
     public MainWindow() {
         initComponents();
         setTitle("AutómataLab - OLC1 Proyecto 1");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1000, 700);
+        setSize(1200, 800);
         setLocationRelativeTo(null);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
     }
     
     private void initComponents() {
-        // Panel principal
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        setLayout(new BorderLayout());
         
-        // Barra de menú
+        // Crear barra de menú
+        createMenuBar();
+        
+        // Panel principal con división
+        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainSplitPane.setDividerLocation(500);
+        mainSplitPane.setResizeWeight(0.7);
+        
+        // Panel superior: Editor
+        editorPanel = new EditorPanel();
+        JPanel editorContainer = new JPanel(new BorderLayout());
+        editorContainer.setBorder(BorderFactory.createTitledBorder("Editor de Código (.atm)"));
+        editorContainer.add(editorPanel, BorderLayout.CENTER);
+        
+        // Panel inferior: Consola
+        consolePanel = new ConsolePanel();
+        JPanel consoleContainer = new JPanel(new BorderLayout());
+        consoleContainer.setBorder(BorderFactory.createTitledBorder("Consola de Salida"));
+        consoleContainer.add(consolePanel, BorderLayout.CENTER);
+        
+        mainSplitPane.setTopComponent(editorContainer);
+        mainSplitPane.setBottomComponent(consoleContainer);
+        
+        add(mainSplitPane, BorderLayout.CENTER);
+        
+        // Barra de estado
+        createStatusBar();
+        
+        // Cargar ejemplo inicial
+        cargarEjemploInicial();
+        
+        // Listeners para actualizar barra de estado
+        setupStatusBarListeners();
+    }
+    
+    private void createMenuBar() {
         JMenuBar menuBar = new JMenuBar();
         
         // Menú Archivo
         JMenu archivoMenu = new JMenu("Archivo");
-        JMenuItem nuevoItem = new JMenuItem("Nuevo");
-        JMenuItem abrirItem = new JMenuItem("Abrir");
-        JMenuItem guardarItem = new JMenuItem("Guardar");
-        JMenuItem guardarComoItem = new JMenuItem("Guardar como...");
-        JMenuItem salirItem = new JMenuItem("Salir");
-        
-        archivoMenu.add(nuevoItem);
-        archivoMenu.add(abrirItem);
-        archivoMenu.add(guardarItem);
-        archivoMenu.add(guardarComoItem);
+        addMenuItem(archivoMenu, "Nuevo", "Ctrl+N", e -> nuevoArchivo());
+        addMenuItem(archivoMenu, "Abrir", "Ctrl+O", e -> abrirArchivo());
+        addMenuItem(archivoMenu, "Guardar", "Ctrl+S", e -> guardarArchivo());
+        addMenuItem(archivoMenu, "Guardar como...", "Ctrl+Shift+S", e -> guardarComoArchivo());
         archivoMenu.addSeparator();
-        archivoMenu.add(salirItem);
+        addMenuItem(archivoMenu, "Salir", "Alt+F4", e -> salir());
         
         // Menú Editar
         JMenu editarMenu = new JMenu("Editar");
-        JMenuItem deshacerItem = new JMenuItem("Deshacer");
-        JMenuItem rehacerItem = new JMenuItem("Rehacer");
-        JMenuItem cortarItem = new JMenuItem("Cortar");
-        JMenuItem copiarItem = new JMenuItem("Copiar");
-        JMenuItem pegarItem = new JMenuItem("Pegar");
-        JMenuItem buscarItem = new JMenuItem("Buscar");
-        
-        editarMenu.add(deshacerItem);
-        editarMenu.add(rehacerItem);
+        addMenuItem(editarMenu, "Cortar", "Ctrl+X", e -> editorPanel.getTextArea().cut());
+        addMenuItem(editarMenu, "Copiar", "Ctrl+C", e -> editorPanel.getTextArea().copy());
+        addMenuItem(editarMenu, "Pegar", "Ctrl+V", e -> editorPanel.getTextArea().paste());
         editarMenu.addSeparator();
-        editarMenu.add(cortarItem);
-        editarMenu.add(copiarItem);
-        editarMenu.add(pegarItem);
-        editarMenu.addSeparator();
-        editarMenu.add(buscarItem);
-        
-        // Menú Ver
-        JMenu verMenu = new JMenu("Ver");
-        JMenuItem aumentarFuenteItem = new JMenuItem("Aumentar fuente");
-        JMenuItem disminuirFuenteItem = new JMenuItem("Disminuir fuente");
-        
-        verMenu.add(aumentarFuenteItem);
-        verMenu.add(disminuirFuenteItem);
-        
-        // Menú Reportes
-        JMenu reportesMenu = new JMenu("Reportes");
-        JMenuItem tokensItem = new JMenuItem("Reporte de Tokens");
-        JMenuItem erroresItem = new JMenuItem("Reporte de Errores");
-        JMenuItem automatasItem = new JMenuItem("Lista de Autómatas");
-        JMenuItem graficosItem = new JMenuItem("Generar Gráficos");
-        JMenuItem pasosItem = new JMenuItem("Reporte de Pasos");
-        
-        reportesMenu.add(tokensItem);
-        reportesMenu.add(erroresItem);
-        reportesMenu.add(automatasItem);
-        reportesMenu.add(graficosItem);
-        reportesMenu.add(pasosItem);
+        addMenuItem(editarMenu, "Buscar", "Ctrl+F", e -> mostrarDialogoBusqueda());
         
         // Menú Ejecutar
         JMenu ejecutarMenu = new JMenu("Ejecutar");
-        JMenuItem ejecutarItem = new JMenuItem("Ejecutar");
-        JMenuItem limpiarConsolaItem = new JMenuItem("Limpiar Consola");
+        addMenuItem(ejecutarMenu, "Ejecutar", "F5", e -> ejecutar());
+        addMenuItem(ejecutarMenu, "Limpiar Consola", "Ctrl+L", e -> consolePanel.clear());
         
-        ejecutarMenu.add(ejecutarItem);
-        ejecutarMenu.add(limpiarConsolaItem);
+        // Menú Reportes
+        JMenu reportesMenu = new JMenu("Reportes");
+        addMenuItem(reportesMenu, "Tokens", null, e -> mostrarTokens());
+        addMenuItem(reportesMenu, "Errores", null, e -> mostrarErrores());
+        addMenuItem(reportesMenu, "Autómatas", null, e -> mostrarAutomatas());
+        addMenuItem(reportesMenu, "Generar Gráfico", null, e -> mostrarGraficos());
         
         // Menú Ayuda
         JMenu ayudaMenu = new JMenu("Ayuda");
-        JMenuItem acercaDeItem = new JMenuItem("Acerca de");
-        JMenuItem manualItem = new JMenuItem("Manual de Usuario");
+        addMenuItem(ayudaMenu, "Manual de Usuario", null, e -> mostrarManual());
+        addMenuItem(ayudaMenu, "Acerca de", null, e -> mostrarAcercaDe());
         
-        ayudaMenu.add(acercaDeItem);
-        ayudaMenu.add(manualItem);
-        
-        // Agregar menús a la barra
         menuBar.add(archivoMenu);
         menuBar.add(editarMenu);
-        menuBar.add(verMenu);
-        menuBar.add(reportesMenu);
         menuBar.add(ejecutarMenu);
+        menuBar.add(reportesMenu);
         menuBar.add(ayudaMenu);
         
         setJMenuBar(menuBar);
-        
-        // Editor y consola
-        tabbedPane = new JTabbedPane();
-        
-        // Usar EditorPanel en lugar de JTextArea
-        editorPanel = new EditorPanel();
-        JScrollPane editorScroll = new JScrollPane(editorPanel);
-        editorScroll.setBorder(BorderFactory.createTitledBorder("Editor de Código (.atm)"));
-        tabbedPane.addTab("Editor", editorScroll);
-        
-        consola = new JTextArea();
-        consola.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        consola.setEditable(false);
-        consola.setBackground(Color.BLACK);
-        consola.setForeground(Color.WHITE);
-        JScrollPane consolaScroll = new JScrollPane(consola);
-        consolaScroll.setBorder(BorderFactory.createTitledBorder("Consola de Salida"));
-        tabbedPane.addTab("Consola", consolaScroll);
-        
-        mainPanel.add(tabbedPane, BorderLayout.CENTER);
-        
-        // Barra de estado
+    }
+    
+    private void addMenuItem(JMenu menu, String text, String shortcut, ActionListener action) {
+        JMenuItem item = new JMenuItem(text);
+        if (shortcut != null) {
+            item.setAccelerator(KeyStroke.getKeyStroke(shortcut));
+        }
+        item.addActionListener(action);
+        menu.add(item);
+    }
+    
+    private void createStatusBar() {
         JPanel statusBar = new JPanel(new BorderLayout());
-        JLabel statusLabel = new JLabel(" Listo para ejecutar");
-        statusLabel.setBorder(BorderFactory.createEtchedBorder());
-        statusBar.add(statusLabel, BorderLayout.WEST);
+        statusBar.setBorder(BorderFactory.createEtchedBorder());
         
-        // Indicador de posición del cursor
-        JLabel positionLabel = new JLabel(" Línea: 1, Columna: 1 ");
-        positionLabel.setBorder(BorderFactory.createEtchedBorder());
+        statusLabel = new JLabel(" Listo para ejecutar");
+        positionLabel = new JLabel(" Línea: 1, Columna: 1 ");
+        
+        statusBar.add(statusLabel, BorderLayout.WEST);
         statusBar.add(positionLabel, BorderLayout.EAST);
         
-        mainPanel.add(statusBar, BorderLayout.SOUTH);
-        
-        // Listeners para menús
-        nuevoItem.addActionListener(e -> nuevoArchivo());
-        abrirItem.addActionListener(e -> abrirArchivo());
-        guardarItem.addActionListener(e -> guardarArchivo());
-        guardarComoItem.addActionListener(e -> guardarComoArchivo());
-        salirItem.addActionListener(e -> salir());
-        
-        deshacerItem.addActionListener(e -> editorPanel.undo());
-        rehacerItem.addActionListener(e -> editorPanel.redo());
-        cortarItem.addActionListener(e -> editorPanel.getTextArea().cut());
-        copiarItem.addActionListener(e -> editorPanel.getTextArea().copy());
-        pegarItem.addActionListener(e -> editorPanel.getTextArea().paste());
-        buscarItem.addActionListener(e -> mostrarDialogoBusqueda());
-        
-        aumentarFuenteItem.addActionListener(e -> editorPanel.increaseFontSize());
-        disminuirFuenteItem.addActionListener(e -> editorPanel.decreaseFontSize());
-        
-        ejecutarItem.addActionListener(e -> ejecutar());
-        limpiarConsolaItem.addActionListener(e -> consola.setText(""));
-        
-        tokensItem.addActionListener(e -> mostrarTokens());
-        erroresItem.addActionListener(e -> mostrarErrores());
-        automatasItem.addActionListener(e -> mostrarAutomatas());
-        graficosItem.addActionListener(e -> mostrarGraficos());
-        pasosItem.addActionListener(e -> mostrarReportePasos());
-        
-        acercaDeItem.addActionListener(e -> mostrarAcercaDe());
-        manualItem.addActionListener(e -> mostrarManual());
-        
-        add(mainPanel);
-        
-        // Actualizar etiqueta de posición en tiempo real
+        add(statusBar, BorderLayout.SOUTH);
+    }
+    
+    private void setupStatusBarListeners() {
         editorPanel.getTextArea().addCaretListener(e -> {
             int line = editorPanel.getCaretLine();
             int column = editorPanel.getCaretColumn();
             positionLabel.setText(" Línea: " + line + ", Columna: " + column + " ");
         });
-        
-        // Cargar ejemplo inicial
-        cargarEjemploInicial();
     }
     
     private void cargarEjemploInicial() {
         String ejemplo = "// Ejemplo de AFD que acepta cadenas con número par de 0s\n" +
                         "<AFD Nombre=\"AFD_Par\">\n" +
                         "  N = {q0, q1};\n" +
-                        "  T = {0, 1};\n" +
+                        "  T = {'0', '1'};\n" +
                         "  I = {q0};\n" +
                         "  A = {q0};\n" +
                         "  \n" +
                         "  Transiciones:\n" +
-                        "    q0 -> 0, q1 | 1, q0;\n" +
-                        "    q1 -> 0, q0 | 1, q1;\n" +
+                        "    q0 -> '0', q1;\n" +
+                        "    q0 -> '1', q0;\n" +
+                        "    q1 -> '0', q0;\n" +
+                        "    q1 -> '1', q1;\n" +
                         "</AFD>\n\n" +
-                        "// Ejemplo de AP para lenguaje a^n b^n\n" +
-                        "<AP Nombre=\"AP_AnBn\">\n" +
-                        "  N = {q0, q1, q2};\n" +
-                        "  T = {a, b};\n" +
-                        "  P = {A, Z};\n" +
-                        "  I = {q0};\n" +
-                        "  A = {q2};\n" +
-                        "  \n" +
-                        "  Transiciones:\n" +
-                        "    q0 (a) -> (Z), q1 : (A Z);\n" +
-                        "    q1 (a) -> (A), q1 : (A A);\n" +
-                        "    q1 (b) -> (A), q2 : ($);\n" +
-                        "    q2 (b) -> (A), q2 : ($);\n" +
-                        "</AP>\n\n" +
                         "// Pruebas\n" +
                         "verAutomatas();\n" +
                         "desc(AFD_Par);\n" +
                         "AFD_Par(\"1010\");\n" +
-                        "AFD_Par(\"100\");\n" +
-                        "AP_AnBn(\"aabb\");";
+                        "AFD_Par(\"100\");";
         
         editorPanel.setText(ejemplo);
+        statusLabel.setText(" Ejemplo cargado - Listo para ejecutar");
     }
     
     private void nuevoArchivo() {
-        int option = JOptionPane.showConfirmDialog(this, 
-                "¿Desea guardar los cambios actuales?", 
-                "Nuevo archivo", 
-                JOptionPane.YES_NO_CANCEL_OPTION);
-        
-        if (option == JOptionPane.YES_OPTION) {
-            guardarArchivo();
+        if (hayModificacionesSinGuardar()) {
+            int option = JOptionPane.showConfirmDialog(this, 
+                    "¿Desea guardar los cambios actuales?", 
+                    "Nuevo archivo", 
+                    JOptionPane.YES_NO_CANCEL_OPTION);
+            
+            if (option == JOptionPane.YES_OPTION) {
+                guardarArchivo();
+            } else if (option == JOptionPane.CANCEL_OPTION) {
+                return;
+            }
         }
         
-        if (option != JOptionPane.CANCEL_OPTION) {
-            editorPanel.clear();
-            consola.setText("");
-            Parser.automatas.clear();
-            Parser.errores.clear();
-            setTitle("AutómataLab - Nuevo archivo");
-        }
+        editorPanel.clear();
+        consolePanel.clear();
+        Parser.automatas.clear();
+        Parser.errores.clear();
+        currentFile = null;
+        setTitle("AutómataLab - Nuevo archivo");
+        statusLabel.setText(" Nuevo archivo creado");
     }
     
     private void abrirArchivo() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos ATM", "atm"));
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos ATM (*.atm)", "atm"));
         fileChooser.setDialogTitle("Abrir archivo .atm");
         
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             try {
-                BufferedReader reader = new BufferedReader(new FileReader(fileChooser.getSelectedFile()));
+                currentFile = fileChooser.getSelectedFile();
+                BufferedReader reader = new BufferedReader(new FileReader(currentFile));
                 StringBuilder content = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -256,62 +204,79 @@ public class MainWindow extends JFrame {
                 reader.close();
                 
                 editorPanel.setText(content.toString());
-                setTitle("AutómataLab - " + fileChooser.getSelectedFile().getName());
+                setTitle("AutómataLab - " + currentFile.getName());
+                statusLabel.setText(" Archivo abierto: " + currentFile.getName());
                 
             } catch (IOException e) {
                 JOptionPane.showMessageDialog(this, 
                     "Error al abrir archivo: " + e.getMessage(), 
                     "Error", 
                     JOptionPane.ERROR_MESSAGE);
+                statusLabel.setText(" Error al abrir archivo");
             }
         }
     }
     
     private void guardarArchivo() {
-        // Implementación básica - en una aplicación real se guardaría el nombre del archivo actual
-        guardarComoArchivo();
+        if (currentFile == null) {
+            guardarComoArchivo();
+        } else {
+            guardarArchivo(currentFile);
+        }
     }
     
     private void guardarComoArchivo() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos ATM", "atm"));
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos ATM (*.atm)", "atm"));
         fileChooser.setDialogTitle("Guardar archivo .atm");
         
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            try {
-                String filename = fileChooser.getSelectedFile().getAbsolutePath();
-                if (!filename.toLowerCase().endsWith(".atm")) {
-                    filename += ".atm";
-                }
-                
-                BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
-                writer.write(editorPanel.getText());
-                writer.close();
-                
-                setTitle("AutómataLab - " + new File(filename).getName());
-                JOptionPane.showMessageDialog(this, 
-                    "Archivo guardado exitosamente", 
-                    "Éxito", 
-                    JOptionPane.INFORMATION_MESSAGE);
-                
-            } catch (IOException e) {
-                JOptionPane.showMessageDialog(this, 
-                    "Error al guardar archivo: " + e.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
+            File file = fileChooser.getSelectedFile();
+            if (!file.getName().toLowerCase().endsWith(".atm")) {
+                file = new File(file.getAbsolutePath() + ".atm");
             }
+            guardarArchivo(file);
         }
     }
     
-    private void salir() {
-        int option = JOptionPane.showConfirmDialog(this, 
-                "¿Está seguro que desea salir?", 
-                "Salir", 
-                JOptionPane.YES_NO_OPTION);
-        
-        if (option == JOptionPane.YES_OPTION) {
-            System.exit(0);
+    private void guardarArchivo(File file) {
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+            writer.write(editorPanel.getText());
+            writer.close();
+            
+            currentFile = file;
+            setTitle("AutómataLab - " + file.getName());
+            statusLabel.setText(" Archivo guardado: " + file.getName());
+            
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, 
+                "Error al guardar archivo: " + e.getMessage(), 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
+            statusLabel.setText(" Error al guardar archivo");
         }
+    }
+    
+    private boolean hayModificacionesSinGuardar() {
+        // Implementación simple - en una aplicación real se compararía con la última versión guardada
+        return !editorPanel.getText().trim().isEmpty();
+    }
+    
+    private void salir() {
+        if (hayModificacionesSinGuardar()) {
+            int option = JOptionPane.showConfirmDialog(this, 
+                    "¿Desea guardar los cambios antes de salir?", 
+                    "Salir", 
+                    JOptionPane.YES_NO_CANCEL_OPTION);
+            
+            if (option == JOptionPane.YES_OPTION) {
+                guardarArchivo();
+            } else if (option == JOptionPane.CANCEL_OPTION) {
+                return;
+            }
+        }
+        System.exit(0);
     }
     
     private void mostrarDialogoBusqueda() {
@@ -326,57 +291,39 @@ public class MainWindow extends JFrame {
     }
     
     private void ejecutar() {
-        consola.setText(""); // Limpiar consola
+        statusLabel.setText(" Ejecutando análisis...");
+        consolePanel.clear();
         Parser.errores.clear();
         
         try {
             String input = editorPanel.getText();
             
-            // Redirigir salida estándar a la consola
-            PrintStream originalOut = System.out;
-            PrintStream originalErr = System.err;
+            // Redirigir salida a consola
+            System.setOut(consolePanel.getConsoleStream());
+            System.setErr(consolePanel.getConsoleStream());
             
-            PrintStream consoleStream = new PrintStream(new OutputStream() {
-                @Override
-                public void write(int b) {
-                    consola.append(String.valueOf((char) b));
-                    consola.setCaretPosition(consola.getDocument().getLength());
-                }
-                
-                @Override
-                public void write(byte[] b, int off, int len) {
-                    consola.append(new String(b, off, len));
-                    consola.setCaretPosition(consola.getDocument().getLength());
-                }
-            });
+            consolePanel.append("=== INICIANDO ANÁLISIS ===\n");
+            long startTime = System.currentTimeMillis();
             
-            System.setOut(consoleStream);
-            System.setErr(consoleStream);
-            
-            // Crear analizador léxico
+            // Crear analizadores
             Lexer lexer = new Lexer(new StringReader(input));
-            
-            // Crear analizador sintáctico
             Parser parser = new Parser(lexer);
             
             // Ejecutar análisis
-            consola.append("=== EJECUTANDO ANÁLISIS ===\n");
-            long startTime = System.currentTimeMillis();
             parser.parse();
+            
             long endTime = System.currentTimeMillis();
+            consolePanel.append("\n=== ANÁLISIS COMPLETADO ===\n");
+            consolePanel.append("Tiempo de ejecución: " + (endTime - startTime) + " ms\n");
+            consolePanel.append("Autómatas definidos: " + Parser.automatas.size() + "\n");
+            consolePanel.append("Errores encontrados: " + Parser.errores.size() + "\n");
             
-            consola.append("\n=== ANÁLISIS COMPLETADO ===\n");
-            consola.append("Tiempo de ejecución: " + (endTime - startTime) + " ms\n");
-            
-            // Restaurar salida estándar
-            System.setOut(originalOut);
-            System.setErr(originalErr);
-            
-            // Cambiar a la pestaña de consola
-            tabbedPane.setSelectedIndex(1);
+            statusLabel.setText(" Análisis completado - " + Parser.automatas.size() + " autómatas, " + 
+                               Parser.errores.size() + " errores");
             
         } catch (Exception e) {
-            consola.append("Error durante la ejecución: " + e.getMessage() + "\n");
+            consolePanel.append("Error durante la ejecución: " + e.getMessage() + "\n");
+            statusLabel.setText(" Error en ejecución");
             e.printStackTrace();
         }
     }
@@ -384,15 +331,12 @@ public class MainWindow extends JFrame {
     private void mostrarTokens() {
         try {
             String input = editorPanel.getText();
-            List<Token> tokens = ReporteTokens.analizarTokens(input);
+            java.util.List<Token> tokens = ReporteTokens.analizarTokens(input);
             
-            // Crear diálogo para mostrar tokens
             JDialog tokensDialog = new JDialog(this, "Reporte de Tokens", true);
             tokensDialog.setSize(800, 600);
-            tokensDialog.setLayout(new BorderLayout());
             tokensDialog.setLocationRelativeTo(this);
             
-            // Crear tabla de tokens
             String[] columnNames = {"#", "Lexema", "Tipo", "Línea", "Columna"};
             Object[][] data = new Object[tokens.size()][5];
             
@@ -406,16 +350,11 @@ public class MainWindow extends JFrame {
             }
             
             JTable tokensTable = new JTable(data, columnNames);
-            tokensTable.setFont(new Font("Monospaced", Font.PLAIN, 12));
-            tokensTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-            
             JScrollPane scrollPane = new JScrollPane(tokensTable);
             tokensDialog.add(scrollPane, BorderLayout.CENTER);
             
-            // Botón para cerrar
             JButton closeButton = new JButton("Cerrar");
             closeButton.addActionListener(e -> tokensDialog.dispose());
-            
             JPanel buttonPanel = new JPanel();
             buttonPanel.add(closeButton);
             tokensDialog.add(buttonPanel, BorderLayout.SOUTH);
@@ -431,18 +370,14 @@ public class MainWindow extends JFrame {
     }
     
     private void mostrarErrores() {
-        ReporteErrores.mostrarErroresConsola();
-        
         if (Parser.errores.isEmpty()) {
             JOptionPane.showMessageDialog(this, 
                 "No se encontraron errores en el análisis.", 
                 "Reporte de Errores", 
                 JOptionPane.INFORMATION_MESSAGE);
         } else {
-            // Crear diálogo para mostrar errores
             JDialog erroresDialog = new JDialog(this, "Reporte de Errores", true);
             erroresDialog.setSize(700, 400);
-            erroresDialog.setLayout(new BorderLayout());
             erroresDialog.setLocationRelativeTo(this);
             
             JTextArea erroresArea = new JTextArea();
@@ -458,14 +393,11 @@ public class MainWindow extends JFrame {
             }
             
             erroresArea.setText(content.toString());
-            
             JScrollPane scrollPane = new JScrollPane(erroresArea);
             erroresDialog.add(scrollPane, BorderLayout.CENTER);
             
-            // Botón para cerrar
             JButton closeButton = new JButton("Cerrar");
             closeButton.addActionListener(e -> erroresDialog.dispose());
-            
             JPanel buttonPanel = new JPanel();
             buttonPanel.add(closeButton);
             erroresDialog.add(buttonPanel, BorderLayout.SOUTH);
@@ -485,7 +417,6 @@ public class MainWindow extends JFrame {
         
         JDialog dialog = new JDialog(this, "Autómatas Definidos", true);
         dialog.setSize(600, 400);
-        dialog.setLayout(new BorderLayout());
         dialog.setLocationRelativeTo(this);
         
         JTextArea automatasArea = new JTextArea();
@@ -502,19 +433,16 @@ public class MainWindow extends JFrame {
                 content.append(((AFD)automata).getDescripcionCompleta()).append("\n");
             } else if (automata instanceof AP) {
                 content.append("AP: ").append(nombre).append(" (Autómata de Pila)\n");
-                // Aquí podrías agregar más detalles del AP si lo deseas
             }
             content.append("----------------------------------------\n");
         }
         
         automatasArea.setText(content.toString());
-        
         JScrollPane scrollPane = new JScrollPane(automatasArea);
         dialog.add(scrollPane, BorderLayout.CENTER);
         
         JButton closeButton = new JButton("Cerrar");
         closeButton.addActionListener(e -> dialog.dispose());
-        
         JPanel buttonPanel = new JPanel();
         buttonPanel.add(closeButton);
         dialog.add(buttonPanel, BorderLayout.SOUTH);
@@ -532,16 +460,18 @@ public class MainWindow extends JFrame {
         }
         
         JDialog dialog = new JDialog(this, "Generar Gráficos", true);
-        dialog.setSize(400, 300);
-        dialog.setLayout(new BorderLayout());
+        dialog.setSize(400, 250);
         dialog.setLocationRelativeTo(this);
         
-        JPanel panel = new JPanel(new GridLayout(0, 1, 5, 5));
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.anchor = GridBagConstraints.WEST;
         
-        JLabel titleLabel = new JLabel("Seleccione autómata para graficar:");
-        panel.add(titleLabel);
+        gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel("Seleccione autómata:"), gbc);
         
+        gbc.gridx = 1;
         JComboBox<String> automataCombo = new JComboBox<>();
         for (String nombre : Parser.automatas.keySet()) {
             Object automata = Parser.automatas.get(nombre);
@@ -549,12 +479,16 @@ public class MainWindow extends JFrame {
                 automataCombo.addItem(nombre + " (AFD)");
             }
         }
-        panel.add(automataCombo);
+        panel.add(automataCombo, gbc);
         
-        JComboBox<String> formatCombo = new JComboBox<>(new String[]{"png", "jpg", "svg", "pdf"});
-        panel.add(new JLabel("Formato:"));
-        panel.add(formatCombo);
+        gbc.gridx = 0; gbc.gridy = 1;
+        panel.add(new JLabel("Formato:"), gbc);
         
+        gbc.gridx = 1;
+        JComboBox<String> formatCombo = new JComboBox<>(new String[]{"png", "jpg", "svg"});
+        panel.add(formatCombo, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.HORIZONTAL;
         JButton generateButton = new JButton("Generar Gráfico");
         generateButton.addActionListener(e -> {
             String selected = (String) automataCombo.getSelectedItem();
@@ -562,14 +496,14 @@ public class MainWindow extends JFrame {
                 String nombre = selected.split(" ")[0];
                 String formato = (String) formatCombo.getSelectedItem();
                 
-                Object automata = Parser.automatas.get(nombre);
-                if (automata instanceof AFD) {
-                    JFileChooser fileChooser = new JFileChooser();
-                    fileChooser.setSelectedFile(new File(nombre + "." + formato));
-                    fileChooser.setDialogTitle("Guardar gráfico como");
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.setSelectedFile(new File(nombre + "." + formato));
+                
+                if (fileChooser.showSaveDialog(dialog) == JFileChooser.APPROVE_OPTION) {
+                    File outputFile = fileChooser.getSelectedFile();
+                    Object automata = Parser.automatas.get(nombre);
                     
-                    if (fileChooser.showSaveDialog(dialog) == JFileChooser.APPROVE_OPTION) {
-                        File outputFile = fileChooser.getSelectedFile();
+                    if (automata instanceof AFD) {
                         boolean success = Graphviz.generarImagenAFD((AFD)automata, formato, outputFile.getAbsolutePath());
                         
                         if (success) {
@@ -587,18 +521,10 @@ public class MainWindow extends JFrame {
                 }
             }
         });
+        panel.add(generateButton, gbc);
         
-        panel.add(generateButton);
-        
-        dialog.add(panel, BorderLayout.CENTER);
+        dialog.add(panel);
         dialog.setVisible(true);
-    }
-    
-    private void mostrarReportePasos() {
-        JOptionPane.showMessageDialog(this, 
-            "Función de reporte de pasos en desarrollo.", 
-            "Reporte de Pasos", 
-            JOptionPane.INFORMATION_MESSAGE);
     }
     
     private void mostrarAcercaDe() {
@@ -606,7 +532,7 @@ public class MainWindow extends JFrame {
                          "Organización de Lenguajes y Compiladores 1\n" +
                          "Primer Semestre 2025\n\n" +
                          "Desarrollado con Java, JFlex y CUP\n" +
-                         "© 2025 - Todos los derechos reservados";
+                         "Copyright 2025 - Todos los derechos reservados";
         
         JOptionPane.showMessageDialog(this, 
             acercaDe, 
@@ -622,15 +548,13 @@ public class MainWindow extends JFrame {
     }
     
     public static void main(String[] args) {
-        // Establecer look and feel del sistema
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             e.printStackTrace();
         }
         
-        // Mostrar la ventana principal
-        java.awt.EventQueue.invokeLater(() -> {
+        SwingUtilities.invokeLater(() -> {
             new MainWindow().setVisible(true);
         });
     }
