@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="AutomataLab" default="compile" basedir=".">
+    <property name="src.dir" value="src"/>
+    <property name="lib.dir" value="lib"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="jar.dir" value="${build.dir}/jar"/>
+    <property name="gramatica.dir" value="gramatica"/>
+    
+    <path id="classpath">
+        <fileset dir="${lib.dir}" includes="**/*.jar"/>
+    </path>
+    
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+    </target>
+    
+    <target name="init">
+        <mkdir dir="${build.dir}"/>
+        <mkdir dir="${classes.dir}"/>
+    </target>
+    
+    <!-- Generar analizador léxico con JFlex -->
+    <target name="generate-lexer" depends="init">
+        <java jar="${lib.dir}/iflex-full-1.7.0.jar" fork="true">
+            <arg value="-d"/>
+            <arg value="${src.dir}/analizadores"/>
+            <arg value="${gramatica.dir}/Lexer.flex"/>
+        </java>
+    </target>
+    
+    <!-- Generar analizador sintáctico con CUP -->
+    <target name="generate-parser" depends="init">
+        <java jar="${lib.dir}/java-cup-11b.jar" fork="true">
+            <arg value="-destdir"/>
+            <arg value="${src.dir}/analizadores"/>
+            <arg value="-parser"/>
+            <arg value="Parser"/>
+            <arg value="${gramatica.dir}/Parser.cup"/>
+        </java>
+    </target>
+    
+    <!-- Compilar todo el proyecto -->
+    <target name="compile" depends="generate-lexer, generate-parser">
+        <javac srcdir="${src.dir}" destdir="${classes.dir}" classpathref="classpath" includeantruntime="false"/>
+    </target>
+    
+    <!-- Crear JAR ejecutable -->
+    <target name="jar" depends="compile">
+        <mkdir dir="${jar.dir}"/>
+        <jar destfile="${jar.dir}/AutomataLab.jar" basedir="${classes.dir}">
+            <manifest>
+                <attribute name="Main-Class" value="main.Main"/>
+                <attribute name="Class-Path" value="lib/java-cup-11b-runtime.jar lib/iflex-full-1.7.0.jar"/>
+            </manifest>
+            <fileset dir="${src.dir}" includes="**/*.class"/>
+        </jar>
+    </target>
+    
+    <target name="run" depends="jar">
+        <java jar="${jar.dir}/AutomataLab.jar" fork="true"/>
+    </target>
+</project>

@@ -1,0 +1,210 @@
+package analizadores;
+
+import java_cup.runtime.*;
+import modelos.*;
+import java.util.*;
+
+parser code {:
+    // Tabla de símbolos para almacenar autómatas
+    public static Map<String, Object> automatas = new HashMap<>();
+    public static List<String> errores = new ArrayList<>();
+    
+    private void mostrarError(String mensaje, int linea, int columna) {
+        String error = "Error sintáctico: " + mensaje + " en línea " + (linea + 1) + ", columna " + (columna + 1);
+        errores.add(error);
+        System.err.println(error);
+    }
+:};
+
+// Terminales
+terminal String CADENA, IDENTIFICADOR;
+terminal Character CARACTER;
+terminal 
+    AFD_INI, AFD_FIN, AP_INI, AP_FIN, 
+    NOMBRE, N, T, P, I, A, TRANSICIONES,
+    VER_AUTOMATAS, DESC,
+    IGUAL, LLAVE_IZQ, LLAVE_DER, PAREN_IZQ, PAREN_DER,
+    FLECHA, OR, PUNTO_COMA, DOS_PUNTOS, COMA, DOLAR;
+
+// No terminales
+non terminal Object programa;
+non terminal Object elemento;
+non terminal AFD afd;
+non terminal AP ap;
+non terminal List<String> lista_estados;
+non terminal List<Character> lista_simbolos;
+non terminal List<Transicion> transiciones_afd;
+non terminal List<Transicion> transiciones_ap;
+
+// Precedencias
+
+// Reglas gramaticales
+programa ::= elemento_lista ;
+
+elemento_lista ::= elemento_lista elemento 
+                 | elemento 
+                 ;
+
+elemento ::= automata 
+            | llamada_funcion 
+            | error PUNTO_COMA {: mostrarError("Error de sintaxis", -1, -1); :}
+            ;
+
+automata ::= afd | ap ;
+
+// AFD
+afd ::= AFD_INI NOMBRE IGUAL CADENA:a 
+        LLAVE_DER 
+        N IGUAL LLAVE_IZQ lista_estados:estados LLAVE_DER PUNTO_COMA
+        T IGUAL LLAVE_IZQ lista_simbolos:alfabeto LLAVE_DER PUNTO_COMA
+        I IGUAL LLAVE_IZQ IDENTIFICADOR:inicial LLAVE_DER PUNTO_COMA
+        A IGUAL LLAVE_IZQ lista_estados:aceptacion LLAVE_DER PUNTO_COMA
+        TRANSICIONES DOS_PUNTOS transiciones_afd:trans 
+        AFD_FIN 
+      {: 
+        try {
+            // Crear y almacenar AFD
+            AFD nuevoAFD = new AFD(a, estados, alfabeto, inicial, aceptacion, trans);
+            automatas.put(a, nuevoAFD);
+            RESULT = nuevoAFD;
+            System.out.println("AFD '" + a + "' definido correctamente");
+        } catch (Exception e) {
+            mostrarError(e.getMessage(), -1, -1);
+            RESULT = null;
+        }
+      :} ;
+
+// AP
+ap ::= AP_INI NOMBRE IGUAL CADENA:a 
+        LLAVE_DER 
+        N IGUAL LLAVE_IZQ lista_estados:estados LLAVE_DER PUNTO_COMA
+        T IGUAL LLAVE_IZQ lista_simbolos:alfabeto LLAVE_DER PUNTO_COMA
+        P IGUAL LLAVE_IZQ lista_simbolos:pila LLAVE_DER PUNTO_COMA
+        I IGUAL LLAVE_IZQ IDENTIFICADOR:inicial LLAVE_DER PUNTO_COMA
+        A IGUAL LLAVE_IZQ lista_estados:aceptacion LLAVE_DER PUNTO_COMA
+        TRANSICIONES DOS_PUNTOS transiciones_ap:trans 
+        AP_FIN 
+      {: 
+        try {
+            // Crear y almacenar AP
+            AP nuevoAP = new AP(a, estados, alfabeto, pila, inicial, aceptacion, trans);
+            automatas.put(a, nuevoAP);
+            RESULT = nuevoAP;
+            System.out.println("AP '" + a + "' definido correctamente");
+        } catch (Exception e) {
+            mostrarError(e.getMessage(), -1, -1);
+            RESULT = null;
+        }
+      :} ;
+
+// Listas
+lista_estados ::= IDENTIFICADOR:e {: 
+                    RESULT = new ArrayList<String>(); 
+                    ((List<String>)RESULT).add(e); 
+                  :}
+                | lista_estados COMA IDENTIFICADOR:e {: 
+                    ((List<String>)RESULT).add(e); 
+                  :} ;
+
+lista_simbolos ::= CARACTER:c {: 
+                    RESULT = new ArrayList<Character>(); 
+                    ((List<Character>)RESULT).add(c); 
+                  :}
+                 | lista_simbolos COMA CARACTER:c {: 
+                    ((List<Character>)RESULT).add(c); 
+                  :} 
+                 | CADENA:s {: 
+                    RESULT = new ArrayList<Character>();
+                    for (char ch : s.toCharArray()) {
+                        ((List<Character>)RESULT).add(ch);
+                    }
+                  :}
+                 | lista_simbolos COMA CADENA:s {: 
+                    for (char ch : s.toCharArray()) {
+                        ((List<Character>)RESULT).add(ch);
+                    }
+                  :} ;
+
+// Transiciones AFD
+transiciones_afd ::= transicion_afd:t {: 
+                    RESULT = new ArrayList<Transicion>(); 
+                    ((List<Transicion>)RESULT).add(t); 
+                  :}
+                   | transiciones_afd OR transicion_afd:t {: 
+                    ((List<Transicion>)RESULT).add(t); 
+                  :} 
+                   | error PUNTO_COMA {: 
+                    RESULT = new ArrayList<Transicion>(); 
+                    mostrarError("Error en transiciones", -1, -1);
+                  :} ;
+
+transicion_afd ::= IDENTIFICADOR:origen FLECHA CARACTER:simbolo COMA IDENTIFICADOR:destino 
+                 {: 
+                    RESULT = new TransicionAFD(origen, simbolo, destino); 
+                  :} ;
+
+// Transiciones AP
+transiciones_ap ::= transicion_ap:t {: 
+                    RESULT = new ArrayList<Transicion>(); 
+                    ((List<Transicion>)RESULT).add(t); 
+                  :}
+                  | transiciones_ap OR transicion_ap:t {: 
+                    ((List<Transicion>)RESULT).add(t); 
+                  :} 
+                  | error PUNTO_COMA {: 
+                    RESULT = new ArrayList<Transicion>(); 
+                    mostrarError("Error en transiciones", -1, -1);
+                  :} ;
+
+transicion_ap ::= IDENTIFICADOR:origen PAREN_IZQ CARACTER:entrada PAREN_DER 
+                  FLECHA PAREN_IZQ CARACTER:extrae PAREN_DER COMA 
+                  IDENTIFICADOR:destino DOS_PUNTOS PAREN_IZQ CARACTER:inserta PAREN_DER
+                {: 
+                    RESULT = new TransicionAP(origen, entrada, extrae, destino, inserta); 
+                  :} ;
+
+// Llamadas a funciones
+llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA 
+                  {: 
+                    // Implementar verAutomatas
+                    System.out.println("=== LISTA DE AUTÓMATAS ===");
+                    for (String nombre : automatas.keySet()) {
+                        Object automata = automatas.get(nombre);
+                        String tipo = (automata instanceof AFD) ? "AFD" : "AP";
+                        System.out.println(nombre + " - " + tipo);
+                    }
+                    System.out.println("==========================");
+                  :}
+                  | DESC PAREN_IZQ IDENTIFICADOR:nombre PAREN_DER PUNTO_COMA 
+                  {: 
+                    // Implementar desc
+                    Object automata = automatas.get(nombre);
+                    if (automata != null) {
+                        System.out.println("=== DESCRIPCIÓN DE " + nombre + " ===");
+                        if (automata instanceof AFD) {
+                            ((AFD)automata).descripcion();
+                        } else if (automata instanceof AP) {
+                            ((AP)automata).descripcion();
+                        }
+                        System.out.println("==============================");
+                    } else {
+                        System.out.println("Error: Autómata '" + nombre + "' no encontrado");
+                    }
+                  :}
+                  | IDENTIFICADOR:nombre PAREN_IZQ CADENA:cadena PAREN_DER PUNTO_COMA 
+                  {: 
+                    // Validar cadena
+                    Object automata = automatas.get(nombre);
+                    if (automata != null) {
+                        boolean valida;
+                        if (automata instanceof AFD) {
+                            valida = ((AFD)automata).validarCadena(cadena);
+                        } else {
+                            valida = ((AP)automata).validarCadena(cadena);
+                        }
+                        System.out.println("Validación: " + nombre + "('" + cadena + "') = " + 
+                                         (valida ? "VÁLIDA" : "NO VÁLIDA"));
+                    } else {
+                        System.out.println("Error: Autómata '" + nombre + "' no encontrado");
+                    }
+                  :} ;
