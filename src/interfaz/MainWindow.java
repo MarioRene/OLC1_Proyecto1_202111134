@@ -290,41 +290,40 @@ public class MainWindow extends JFrame {
     }
     
     private void cargarEjemploInicial() {
-        String ejemplo = """
-                // Ejemplo 1: AFD que acepta cadenas con número par de 0s
-                <AFD Nombre="AFD_Par_Ceros">
-                  N = {q0, q1};
-                  T = {'0', '1'};
-                  I = {q0};
-                  A = {q0};
-                  
-                  Transiciones:
-                    q0 -> '0', q1 | '1', q0;
-                    q1 -> '0', q0 | '1', q1;
-                </AFD>
-                
-                // Ejemplo 2: AP que acepta L = {a^n b^n | n >= 1}
-                <AP Nombre="AP_AnBn">
-                  N = {q0, q1, q2};
-                  T = {'a', 'b'};
-                  P = {'A', 'Z'};
-                  I = {q0};
-                  A = {q2};
-                  
-                  Transiciones:
-                    q0 ('a') -> ('Z'), q1 : ('A');
-                    q1 ('a') -> ('A'), q1 : ('A') | ('b') -> ('A'), q1 : ('$');
-                    q1 ('$') -> ('Z'), q2 : ('$');
-                </AP>
-                
-                // Comandos de prueba
-                verAutomatas();
-                desc(AFD_Par_Ceros);
-                AFD_Par_Ceros("1010");
-                AFD_Par_Ceros("100");
-                AP_AnBn("aabb");
-                AP_AnBn("aaabbb");
-                """;
+        String ejemplo = 
+                "// Ejemplo 1: AFD que acepta cadenas con número par de 0s\n" +
+                "<AFD Nombre=\"AFD_Par_Ceros\">\n" +
+                "  N = {q0, q1};\n" +
+                "  T = {'0', '1'};\n" +
+                "  I = {q0};\n" +
+                "  A = {q0};\n" +
+                "  \n" +
+                "  Transiciones:\n" +
+                "    q0 -> '0', q1 | '1', q0;\n" +
+                "    q1 -> '0', q0 | '1', q1;\n" +
+                "</AFD>\n" +
+                "\n" +
+                "// Ejemplo 2: AP que acepta L = {a^n b^n | n >= 1}\n" +
+                "<AP Nombre=\"AP_AnBn\">\n" +
+                "  N = {q0, q1, q2};\n" +
+                "  T = {'a', 'b'};\n" +
+                "  P = {'A', 'Z'};\n" +
+                "  I = {q0};\n" +
+                "  A = {q2};\n" +
+                "  \n" +
+                "  Transiciones:\n" +
+                "    q0 ('a') -> ('Z'), q1 : ('A');\n" +
+                "    q1 ('a') -> ('A'), q1 : ('A') | ('b') -> ('A'), q1 : ('$');\n" +
+                "    q1 ('$') -> ('Z'), q2 : ('$');\n" +
+                "</AP>\n" +
+                "\n" +
+                "// Comandos de prueba\n" +
+                "verAutomatas();\n" +
+                "desc(AFD_Par_Ceros);\n" +
+                "AFD_Par_Ceros(\"1010\");\n" +
+                "AFD_Par_Ceros(\"100\");\n" +
+                "AP_AnBn(\"aabb\");\n" +
+                "AP_AnBn(\"aaabbb\");\n";
         
         editorPanel.setText(ejemplo);
         statusLabel.setText(" Ejemplos cargados - Listo para ejecutar");

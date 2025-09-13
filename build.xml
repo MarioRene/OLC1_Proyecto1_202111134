@@ -26,19 +26,6 @@
         <pathelement location="${classes.dir}"/>
     </path>
     
-    <!-- Target por defecto -->
-    <target name="help" description="Mostrar ayuda">
-        <echo>Targets disponibles:</echo>
-        <echo>  clean       - Limpiar archivos compilados</echo>
-        <echo>  init        - Inicializar directorios</echo>
-        <echo>  generate    - Generar analizadores JFlex y CUP</echo>
-        <echo>  compile     - Compilar todo el proyecto</echo>
-        <echo>  jar         - Crear JAR ejecutable</echo>
-        <echo>  run         - Ejecutar la aplicacion</echo>
-        <echo>  all         - Limpiar, compilar y crear JAR</echo>
-        <echo>  test        - Ejecutar pruebas basicas</echo>
-    </target>
-    
     <!-- Limpiar archivos generados -->
     <target name="clean" description="Limpiar archivos compilados">
         <echo>Limpiando archivos anteriores...</echo>
@@ -114,7 +101,7 @@
     <target name="compile" depends="generate" description="Compilar codigo fuente">
         <echo>Compilando codigo fuente...</echo>
         
-        <!-- Compilar por modulos para mejor control de errores -->
+        <!-- Compilar todos los archivos Java -->
         <javac srcdir="${src.dir}" destdir="${classes.dir}" 
                classpathref="classpath" 
                includeantruntime="false" 
@@ -123,9 +110,63 @@
                debuglevel="lines,vars,source">
             <compilerarg value="-Xlint:unchecked"/>
             <compilerarg value="-Xlint:deprecation"/>
-            
-            <!-- Compilar en orden de dependencias -->
-            <include name="modelos/**/*.java"/>
-            <include name="analizadores/**/*.java"/>
-            <include name="reportes/**/*.java"/>
-            <include name="interfaz/**/*.java"/>
+        </javac>
+        
+        <echo>Compilacion completada exitosamente.</echo>
+    </target>
+    
+    <!-- Crear JAR ejecutable -->
+    <target name="jar" depends="compile" description="Crear JAR ejecutable">
+        <echo>Creando JAR ejecutable...</echo>
+        
+        <!-- Crear manifest -->
+        <manifest file="${build.dir}/MANIFEST.MF">
+            <attribute name="Main-Class" value="${main.class}"/>
+            <attribute name="Class-Path" value="lib/java-cup-11b-runtime.jar"/>
+            <attribute name="Created-By" value="AutomataLab Build System"/>
+            <attribute name="Implementation-Title" value="AutomataLab"/>
+            <attribute name="Implementation-Version" value="1.0"/>
+        </manifest>
+        
+        <!-- Crear JAR con todas las clases -->
+        <jar destfile="${jar.dir}/${jar.name}" manifest="${build.dir}/MANIFEST.MF">
+            <fileset dir="${classes.dir}"/>
+            <!-- Incluir runtime de CUP en el JAR -->
+            <zipfileset src="${lib.dir}/java-cup-11b-runtime.jar" excludes="META-INF/*"/>
+        </jar>
+        
+        <echo>JAR creado: ${jar.dir}/${jar.name}</echo>
+    </target>
+    
+    <!-- Ejecutar la aplicacion -->
+    <target name="run" depends="jar" description="Ejecutar la aplicacion">
+        <echo>Ejecutando AutomataLab...</echo>
+        <java jar="${jar.dir}/${jar.name}" fork="true"/>
+    </target>
+    
+    <!-- Compilar y crear JAR -->
+    <target name="all" depends="clean, jar" description="Limpiar, compilar y crear JAR">
+        <echo>Proceso completo terminado.</echo>
+    </target>
+    
+    <!-- Ejecutar pruebas basicas -->
+    <target name="test" depends="compile" description="Ejecutar pruebas basicas">
+        <echo>Ejecutando pruebas basicas...</echo>
+        <java classname="${main.class}" classpathref="runtime.classpath" fork="true">
+            <arg value="ejemplos/ejemplo.atm"/>
+        </java>
+    </target>
+    
+    <!-- Target por defecto mejorado -->
+    <target name="help" description="Mostrar ayuda">
+        <echo>AutomataLab - Targets disponibles:</echo>
+        <echo>  clean       - Limpiar archivos compilados</echo>
+        <echo>  init        - Inicializar directorios</echo>
+        <echo>  generate    - Generar analizadores JFlex y CUP</echo>
+        <echo>  compile     - Compilar todo el proyecto</echo>
+        <echo>  jar         - Crear JAR ejecutable</echo>
+        <echo>  run         - Ejecutar la aplicacion</echo>
+        <echo>  all         - Limpiar, compilar y crear JAR</echo>
+        <echo>  test        - Ejecutar pruebas basicas</echo>
+    </target>
+</project>
