@@ -9,13 +9,19 @@ parser code {:
     public static List<String> errores = new ArrayList<>();
     
     private void mostrarError(String mensaje, int linea, int columna) {
-        String error = "Error sintáctico: " + mensaje + " en línea " + (linea + 1) + ", columna " + (columna + 1);
+        String error = "Error sintáctico: " + mensaje;
+        if (linea >= 0 && columna >= 0) {
+            error += " en línea " + (linea + 1) + ", columna " + (columna + 1);
+        }
         errores.add(error);
         System.err.println(error);
     }
     
     public void syntax_error(Symbol s) {
-        String tokenName = (s.value != null) ? s.value.toString() : "desconocido";
+        String tokenName = "desconocido";
+        if (s.value != null) {
+            tokenName = s.value.toString();
+        }
         mostrarError("Token inesperado '" + tokenName + "'", s.left, s.right);
     }
     
@@ -56,7 +62,7 @@ precedence left OR;
 precedence left FLECHA;
 precedence left COMA;
 
-// Símbolos de inicio
+// Símbolo de inicio
 start with programa;
 
 // Reglas gramaticales
@@ -71,7 +77,7 @@ elementos ::= elementos elemento
 elemento ::= definicion_afd
            | definicion_ap
            | llamada_funcion
-           | error PUNTO_COMA {: parser.mostrarError("Error de sintaxis", -1, -1); :}
+           | error PUNTO_COMA {: parser.mostrarError("Error de sintaxis en elemento", -1, -1); :}
            ;
 
 // Definición de AFD
@@ -89,7 +95,7 @@ definicion_afd ::= AFD_INI NOMBRE IGUAL CADENA:nombre LLAVE_DER
                        RESULT = nuevoAFD;
                        System.out.println("AFD '" + nombre + "' definido correctamente");
                    } catch (Exception e) {
-                       parser.mostrarError(e.getMessage(), -1, -1);
+                       parser.mostrarError("Error en AFD '" + nombre + "': " + e.getMessage(), -1, -1);
                        RESULT = null;
                    }
                  :} ;
@@ -110,7 +116,7 @@ definicion_ap ::= AP_INI NOMBRE IGUAL CADENA:nombre LLAVE_DER
                       RESULT = nuevoAP;
                       System.out.println("AP '" + nombre + "' definido correctamente");
                   } catch (Exception e) {
-                      parser.mostrarError(e.getMessage(), -1, -1);
+                      parser.mostrarError("Error en AP '" + nombre + "': " + e.getMessage(), -1, -1);
                       RESULT = null;
                   }
                 :} ;
@@ -201,27 +207,33 @@ trans_ap_simple ::= IDENTIFICADOR:origen PAREN_IZQ CARACTER:entrada PAREN_DER
 // Llamadas a funciones
 llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA 
                   {: 
-                    System.out.println("=== LISTA DE AUTÓMATAS ===");
-                    for (String nombre : parser.automatas.keySet()) {
-                        Object automata = parser.automatas.get(nombre);
-                        String tipo = (automata instanceof AFD) ? "Autómata Finito Determinista" : "Autómata de Pila";
-                        System.out.println(nombre + " - " + tipo);
+                    System.out.println("\n=== LISTA DE AUTOMATAS ===");
+                    if (parser.automatas.isEmpty()) {
+                        System.out.println("No hay automatas definidos.");
+                    } else {
+                        int contador = 1;
+                        for (String nombre : parser.automatas.keySet()) {
+                            Object automata = parser.automatas.get(nombre);
+                            String tipo = (automata instanceof AFD) ? "Automata Finito Determinista" : "Automata de Pila";
+                            System.out.println(contador++ + ". " + nombre + " - " + tipo);
+                        }
                     }
-                    System.out.println("==========================");
+                    System.out.println("==========================\n");
                   :}
                   | DESC PAREN_IZQ IDENTIFICADOR:nombre PAREN_DER PUNTO_COMA 
                   {: 
                     Object automata = parser.automatas.get(nombre);
                     if (automata != null) {
-                        System.out.println("=== DESCRIPCIÓN DE " + nombre + " ===");
+                        System.out.println("\n=== DESCRIPCION DE " + nombre + " ===");
                         if (automata instanceof AFD) {
                             ((AFD)automata).descripcion();
                         } else if (automata instanceof AP) {
                             ((AP)automata).descripcion();
                         }
-                        System.out.println("==============================");
+                        System.out.println("==============================\n");
                     } else {
-                        System.out.println("Error: Autómata '" + nombre + "' no encontrado");
+                        System.out.println("Error: Automata '" + nombre + "' no encontrado");
+                        parser.mostrarError("Automata '" + nombre + "' no esta definido", -1, -1);
                     }
                   :}
                   | IDENTIFICADOR:nombre PAREN_IZQ CADENA:cadena PAREN_DER PUNTO_COMA 
@@ -229,14 +241,20 @@ llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA
                     Object automata = parser.automatas.get(nombre);
                     if (automata != null) {
                         boolean valida;
-                        if (automata instanceof AFD) {
-                            valida = ((AFD)automata).validarCadena(cadena);
-                        } else {
-                            valida = ((AP)automata).validarCadena(cadena);
+                        try {
+                            if (automata instanceof AFD) {
+                                valida = ((AFD)automata).validarCadena(cadena);
+                            } else {
+                                valida = ((AP)automata).validarCadena(cadena);
+                            }
+                            System.out.println("\nValidacion: " + nombre + "(\"" + cadena + "\") = " + 
+                                             (valida ? "VALIDA" : "NO VALIDA") + "\n");
+                        } catch (Exception e) {
+                            System.out.println("Error validando cadena: " + e.getMessage());
+                            parser.mostrarError("Error en validacion de cadena", -1, -1);
                         }
-                        System.out.println("Validación: " + nombre + "('" + cadena + "') = " + 
-                                         (valida ? "VÁLIDA" : "NO VÁLIDA"));
                     } else {
-                        System.out.println("Error: Autómata '" + nombre + "' no encontrado");
+                        System.out.println("Error: Automata '" + nombre + "' no encontrado");
+                        parser.mostrarError("Automata '" + nombre + "' no esta definido", -1, -1);
                     }
                   :} ;

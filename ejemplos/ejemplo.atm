@@ -1,32 +1,103 @@
-// Ejemplo de AFD que acepta cadenas con número par de 0s
-<AFD Nombre="AFD_Par">
+// ================================================================
+//                    AUTOMATALAB - EJEMPLO CORREGIDO
+//           Archivo de prueba con automatas funcionales
+// ================================================================
+
+// Ejemplo 1: AFD que acepta cadenas con numero par de ceros
+<AFD Nombre="AFD_ParCeros">
   N = {q0, q1};
-  T = {0, 1};
+  T = {'0', '1'};
   I = {q0};
   A = {q0};
   
   Transiciones:
-    q0 -> 0, q1 | 1, q0;
-    q1 -> 0, q0 | 1, q1;
+    q0 -> '0', q1;
+    q0 -> '1', q0;
+    q1 -> '0', q0;
+    q1 -> '1', q1;
 </AFD>
 
-// Ejemplo de AP para lenguaje a^n b^n
-<AP Nombre="AP_AnBn">
+// Ejemplo 2: AFD que acepta cadenas que terminan en "01"
+<AFD Nombre="AFD_TerminaEn01">
   N = {q0, q1, q2};
-  T = {a, b};
-  P = {A, Z};
+  T = {'0', '1'};
   I = {q0};
   A = {q2};
   
   Transiciones:
-    q0 (a) -> (Z), q1 : (A Z);
-    q1 (a) -> (A), q1 : (A A);
-    q1 (b) -> (A), q2 : ($);
-    q2 (b) -> (A), q2 : ($);
+    q0 -> '0', q1;
+    q0 -> '1', q0;
+    q1 -> '0', q1;
+    q1 -> '1', q2;
+    q2 -> '0', q1;
+    q2 -> '1', q0;
+</AFD>
+
+// Ejemplo 3: AP que acepta el lenguaje {a^n b^n | n >= 1}
+<AP Nombre="AP_AnBn">
+  N = {q0, q1, q2};
+  T = {'a', 'b'};
+  P = {'A', 'Z'};
+  I = {q0};
+  A = {q2};
+  
+  Transiciones:
+    q0 ('a') -> ('Z'), q1 : ('A');
+    q1 ('a') -> ('A'), q1 : ('A');
+    q1 ('b') -> ('A'), q1 : ('$');
+    q1 ('$') -> ('Z'), q2 : ('$');
 </AP>
 
-// Pruebas
+// Ejemplo 4: AP para parentesis balanceados
+<AP Nombre="AP_Parentesis">
+  N = {q0, q1};
+  T = {'(', ')'};
+  P = {'P', 'Z'};
+  I = {q0};
+  A = {q1};
+  
+  Transiciones:
+    q0 ('(') -> ('Z'), q0 : ('P');
+    q0 ('(') -> ('P'), q0 : ('P');
+    q0 (')') -> ('P'), q0 : ('$');
+    q0 ('$') -> ('Z'), q1 : ('$');
+</AP>
+
+// ================================================================
+//                      COMANDOS DE PRUEBA
+// ================================================================
+
+// Listar todos los automatas definidos
 verAutomatas();
-desc(AFD_Par);
-AFD_Par("1010");
-AP_AnBn("aabb");
+
+// Mostrar descripcion detallada de cada automata
+desc(AFD_ParCeros);
+desc(AFD_TerminaEn01);
+desc(AP_AnBn);
+desc(AP_Parentesis);
+
+// Pruebas del AFD para numero par de ceros
+AFD_ParCeros("1010");     // Deberia ser VALIDA (2 ceros)
+AFD_ParCeros("100");      // Deberia ser NO VALIDA (1 cero)
+AFD_ParCeros("1111");     // Deberia ser VALIDA (0 ceros)
+AFD_ParCeros("000");      // Deberia ser NO VALIDA (3 ceros)
+
+// Pruebas del AFD que termina en "01"
+AFD_TerminaEn01("1001");  // Deberia ser VALIDA
+AFD_TerminaEn01("101");   // Deberia ser VALIDA
+AFD_TerminaEn01("110");   // Deberia ser NO VALIDA
+AFD_TerminaEn01("01");    // Deberia ser VALIDA
+
+// Pruebas del AP para a^n b^n
+AP_AnBn("ab");            // Deberia ser VALIDA
+AP_AnBn("aabb");          // Deberia ser VALIDA
+AP_AnBn("aaabbb");        // Deberia ser VALIDA
+AP_AnBn("aab");           // Deberia ser NO VALIDA
+AP_AnBn("abb");           // Deberia ser NO VALIDA
+
+// Pruebas del AP para parentesis balanceados
+AP_Parentesis("()");      // Deberia ser VALIDA
+AP_Parentesis("(())");    // Deberia ser VALIDA
+AP_Parentesis("((()))");  // Deberia ser VALIDA
+AP_Parentesis("(()");     // Deberia ser NO VALIDA
+AP_Parentesis("())");     // Deberia ser NO VALIDA

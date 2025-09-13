@@ -1,80 +1,131 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="AutomataLab" default="compile" basedir=".">
+    <description>
+        Proyecto AutomataLab - Organizacion de Lenguajes y Compiladores 1
+        Sistema para analisis de automatas finitos deterministas y automatas de pila
+    </description>
+    
+    <!-- Propiedades del proyecto -->
     <property name="src.dir" value="src"/>
     <property name="lib.dir" value="lib"/>
     <property name="build.dir" value="build"/>
     <property name="classes.dir" value="${build.dir}/classes"/>
     <property name="jar.dir" value="${build.dir}/jar"/>
     <property name="gramatica.dir" value="gramatica"/>
+    <property name="docs.dir" value="docs"/>
+    <property name="main.class" value="main.Main"/>
+    <property name="jar.name" value="AutomataLab.jar"/>
     
+    <!-- Classpath con todas las librerias -->
     <path id="classpath">
         <fileset dir="${lib.dir}" includes="**/*.jar"/>
     </path>
     
-    <target name="clean">
-        <delete dir="${build.dir}"/>
-        <!-- Limpiar archivos generados -->
-        <delete file="${src.dir}/analizadores/Lexer.java"/>
-        <delete file="${src.dir}/analizadores/Parser.java"/>
-        <delete file="${src.dir}/analizadores/sym.java"/>
+    <path id="runtime.classpath">
+        <path refid="classpath"/>
+        <pathelement location="${classes.dir}"/>
+    </path>
+    
+    <!-- Target por defecto -->
+    <target name="help" description="Mostrar ayuda">
+        <echo>Targets disponibles:</echo>
+        <echo>  clean       - Limpiar archivos compilados</echo>
+        <echo>  init        - Inicializar directorios</echo>
+        <echo>  generate    - Generar analizadores JFlex y CUP</echo>
+        <echo>  compile     - Compilar todo el proyecto</echo>
+        <echo>  jar         - Crear JAR ejecutable</echo>
+        <echo>  run         - Ejecutar la aplicacion</echo>
+        <echo>  all         - Limpiar, compilar y crear JAR</echo>
+        <echo>  test        - Ejecutar pruebas basicas</echo>
     </target>
     
-    <target name="init">
+    <!-- Limpiar archivos generados -->
+    <target name="clean" description="Limpiar archivos compilados">
+        <echo>Limpiando archivos anteriores...</echo>
+        <delete dir="${build.dir}" quiet="true"/>
+        
+        <!-- Limpiar archivos generados por JFlex/CUP -->
+        <delete file="${src.dir}/analizadores/Lexer.java" quiet="true"/>
+        <delete file="${src.dir}/analizadores/Parser.java" quiet="true"/>
+        <delete file="${src.dir}/analizadores/sym.java" quiet="true"/>
+        
+        <echo>Limpieza completada.</echo>
+    </target>
+    
+    <!-- Inicializar directorios -->
+    <target name="init" description="Crear estructura de directorios">
+        <echo>Creando directorios...</echo>
         <mkdir dir="${build.dir}"/>
         <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${jar.dir}"/>
         <mkdir dir="${src.dir}/analizadores"/>
+        
+        <!-- Verificar que existan las librerias necesarias -->
+        <available file="${lib.dir}/jflex-full-1.7.0.jar" property="jflex.present"/>
+        <available file="${lib.dir}/java-cup-11b.jar" property="cup.present"/>
+        <available file="${lib.dir}/java-cup-11b-runtime.jar" property="cup.runtime.present"/>
+        
+        <fail unless="jflex.present" message="JFlex no encontrado en ${lib.dir}/jflex-full-1.7.0.jar"/>
+        <fail unless="cup.present" message="Java CUP no encontrado en ${lib.dir}/java-cup-11b.jar"/>
+        <fail unless="cup.runtime.present" message="CUP Runtime no encontrado en ${lib.dir}/java-cup-11b-runtime.jar"/>
+        
+        <echo>Directorios creados y librerias verificadas.</echo>
     </target>
     
-    <!-- Generar analizador léxico con JFlex -->
-    <target name="generate-lexer" depends="init">
-        <java jar="${lib.dir}/jflex-full-1.7.0.jar" fork="true">
+    <!-- Generar analizador lexico con JFlex -->
+    <target name="generate-lexer" depends="init" description="Generar analizador lexico">
+        <echo>Generando analizador lexico con JFlex...</echo>
+        <java jar="${lib.dir}/jflex-full-1.7.0.jar" fork="true" failonerror="true">
             <arg value="-d"/>
             <arg value="${src.dir}/analizadores"/>
             <arg value="${gramatica.dir}/Lexer.flex"/>
         </java>
+        
+        <available file="${src.dir}/analizadores/Lexer.java" property="lexer.generated"/>
+        <fail unless="lexer.generated" message="Error: Lexer.java no fue generado"/>
+        <echo>Analizador lexico generado exitosamente.</echo>
     </target>
     
-    <!-- Generar analizador sintáctico con CUP -->
-    <target name="generate-parser" depends="init">
-        <java jar="${lib.dir}/java-cup-11b.jar" fork="true">
+    <!-- Generar analizador sintactico con CUP -->
+    <target name="generate-parser" depends="init" description="Generar analizador sintactico">
+        <echo>Generando analizador sintactico con CUP...</echo>
+        <java jar="${lib.dir}/java-cup-11b.jar" fork="true" failonerror="true">
             <arg value="-destdir"/>
             <arg value="${src.dir}/analizadores"/>
             <arg value="-parser"/>
             <arg value="Parser"/>
             <arg value="${gramatica.dir}/Parser.cup"/>
         </java>
+        
+        <available file="${src.dir}/analizadores/Parser.java" property="parser.generated"/>
+        <available file="${src.dir}/analizadores/sym.java" property="sym.generated"/>
+        <fail unless="parser.generated" message="Error: Parser.java no fue generado"/>
+        <fail unless="sym.generated" message="Error: sym.java no fue generado"/>
+        <echo>Analizador sintactico generado exitosamente.</echo>
     </target>
     
-    <!-- Compilar todo el proyecto -->
-    <target name="compile" depends="generate-lexer, generate-parser">
-        <javac srcdir="${src.dir}" destdir="${classes.dir}" classpathref="classpath" 
-               includeantruntime="false" encoding="UTF-8">
+    <!-- Generar todos los analizadores -->
+    <target name="generate" depends="generate-lexer, generate-parser" 
+            description="Generar todos los analizadores">
+        <echo>Todos los analizadores generados correctamente.</echo>
+    </target>
+    
+    <!-- Compilar codigo fuente -->
+    <target name="compile" depends="generate" description="Compilar codigo fuente">
+        <echo>Compilando codigo fuente...</echo>
+        
+        <!-- Compilar por modulos para mejor control de errores -->
+        <javac srcdir="${src.dir}" destdir="${classes.dir}" 
+               classpathref="classpath" 
+               includeantruntime="false" 
+               encoding="UTF-8"
+               debug="true"
+               debuglevel="lines,vars,source">
             <compilerarg value="-Xlint:unchecked"/>
-        </javac>
-    </target>
-    
-    <!-- Crear JAR ejecutable -->
-    <target name="jar" depends="compile">
-        <mkdir dir="${jar.dir}"/>
-        <jar destfile="${jar.dir}/AutomataLab.jar" basedir="${classes.dir}">
-            <manifest>
-                <attribute name="Main-Class" value="main.Main"/>
-                <attribute name="Class-Path" value="../lib/java-cup-11b-runtime.jar"/>
-            </manifest>
-            <!-- Incluir librerías necesarias -->
-            <zipfileset excludes="META-INF/*.SF" src="${lib.dir}/java-cup-11b-runtime.jar"/>
-        </jar>
-    </target>
-    
-    <target name="run" depends="jar">
-        <java jar="${jar.dir}/AutomataLab.jar" fork="true"/>
-    </target>
-    
-    <!-- Target para desarrollo rápido -->
-    <target name="dev" depends="clean, compile">
-        <java classname="main.Main" fork="true">
-            <classpath refid="classpath"/>
-            <classpath path="${classes.dir}"/>
-        </java>
-    </target>
-</project>
+            <compilerarg value="-Xlint:deprecation"/>
+            
+            <!-- Compilar en orden de dependencias -->
+            <include name="modelos/**/*.java"/>
+            <include name="analizadores/**/*.java"/>
+            <include name="reportes/**/*.java"/>
+            <include name="interfaz/**/*.java"/>
