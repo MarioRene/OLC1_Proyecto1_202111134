@@ -99,14 +99,18 @@ public class AFD {
                 throw new RuntimeException("Símbolo '" + transAFD.getSimbolo() + "' no pertenece al alfabeto T = " + alfabeto);
             }
             
-            // Verificar determinismo (característica fundamental de AFD)
+            // VALIDACIÓN CRÍTICA DE DETERMINISMO (según especificación)
+            // "Se deberá verificar que las transiciones ingresadas correspondan a un AFD, 
+            // por ejemplo, si se intenta hacer más de una transición de un estado con el
+            // mismo símbolo, se debe mostrar un error."
             Map<Character, String> transEstado = this.transiciones.get(transAFD.getOrigen());
             if (transEstado.containsKey(transAFD.getSimbolo())) {
                 String existente = transEstado.get(transAFD.getSimbolo());
-                throw new RuntimeException("AFD no determinista: Ya existe transición δ(" + 
-                        transAFD.getOrigen() + ", '" + transAFD.getSimbolo() + "') = " + existente + 
-                        ". No se puede definir δ(" + transAFD.getOrigen() + ", '" + 
-                        transAFD.getSimbolo() + "') = " + transAFD.getDestino());
+                throw new RuntimeException("Error: AFD no determinista detectado. " +
+                        "Ya existe δ(" + transAFD.getOrigen() + ", " + transAFD.getSimbolo() + ") = " + existente + 
+                        ". No se puede definir δ(" + transAFD.getOrigen() + ", " + 
+                        transAFD.getSimbolo() + ") = " + transAFD.getDestino() + 
+                        ". Un AFD debe tener máximo una transición por estado y símbolo.");
             }
             
             // Agregar transición

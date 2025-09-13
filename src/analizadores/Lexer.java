@@ -698,8 +698,8 @@ public class Lexer implements java_cup.runtime.Scanner {
       else {
         switch (zzAction < 0 ? zzAction : ZZ_ACTION[zzAction]) {
           case 1: 
-            { String mensaje = "Caracter no valido '" + yytext() + "' en linea " + (yyline+1) + ", columna " + (yycolumn+1);
-    System.err.println("Error lexico: " + mensaje);
+            { String mensaje = "El carácter '" + yytext() + "' no pertenece al lenguaje";
+    System.err.println("Error léxico: " + mensaje + " en línea " + (yyline+1) + ", columna " + (yycolumn+1));
     return symbol(sym.error, yytext());
             } 
             // fall through
@@ -790,7 +790,7 @@ public class Lexer implements java_cup.runtime.Scanner {
             // fall through
           case 48: break;
           case 19: 
-            { /* Ignorar comentarios */
+            { /* Ignorar comentarios - tanto // como /* */ */
             } 
             // fall through
           case 49: break;

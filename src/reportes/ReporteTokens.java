@@ -46,6 +46,25 @@ public class ReporteTokens {
         TOKEN_NAMES.put(27, "COMA");
         TOKEN_NAMES.put(28, "LAMBDA");
     }
+
+    /**
+     * Escapa caracteres especiales de HTML en una cadena.
+     */
+    private static String escapeHtml(String text) {
+        if (text == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (char c : text.toCharArray()) {
+            switch (c) {
+                case '&': sb.append("&amp;"); break;
+                case '<': sb.append("&lt;"); break;
+                case '>': sb.append("&gt;"); break;
+                case '"': sb.append("&quot;"); break;
+                case '\'': sb.append("&#39;"); break;
+                default: sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
     
     public static List<Token> analizarTokens(String input) {
         List<Token> tokens = new ArrayList<>();
@@ -126,51 +145,96 @@ public class ReporteTokens {
         }
     }
     
+    public static void mostrarTokensConsola(List<Token> tokens) {
+        System.out.println("=== TABLA DE TOKENS ===");
+        System.out.printf("%-5s %-20s %-15s %-8s %-8s\n", "#", "Lexema", "Tipo", "Línea", "Columna");
+        System.out.println("-".repeat(60));
+        
+        for (Token token : tokens) {
+            System.out.printf("%-5d %-20s %-15s %-8d %-8d\n", 
+                token.getNumero(),
+                truncarTexto(token.getLexema(), 20),
+                token.getTipo(),
+                token.getLinea(),
+                token.getColumna()
+            );
+        }
+        System.out.println("=".repeat(60));
+        System.out.println("Total de tokens: " + tokens.size());
+    }
+    
     public static void generarReporteHTML(List<Token> tokens, String archivoSalida) {
         try {
             StringBuilder html = new StringBuilder();
-            html.append("<!DOCTYPE html>\n<html>\n<head>\n")
-                .append("<title>Reporte de Tokens</title>\n")
-                .append("<meta charset='UTF-8'>\n")
+            html.append("<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n")
+                .append("<meta charset=\"UTF-8\">\n")
+                .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
+                .append("<title>Tabla de Tokens - AutómataLab</title>\n")
                 .append("<style>\n")
-                .append("body { font-family: Arial, sans-serif; margin: 20px; }\n")
-                .append("table { border-collapse: collapse; width: 100%; }\n")
-                .append("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n")
-                .append("th { background-color: #f2f2f2; }\n")
+                .append("* { margin: 0; padding: 0; box-sizing: border-box; }\n")
+                .append("body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); min-height: 100vh; padding: 20px; }\n")
+                .append(".container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }\n")
+                .append(".header { background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%); color: white; padding: 30px; text-align: center; }\n")
+                .append(".header h1 { font-size: 2.5em; margin-bottom: 10px; font-weight: 300; }\n")
+                .append(".content { padding: 30px; }\n")
+                .append("table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n")
+                .append("th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: left; }\n")
+                .append("th { background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%); font-weight: bold; color: #333; }\n")
+                .append("tr:nth-child(even) { background-color: #f9f9f9; }\n")
+                .append("tr:hover { background-color: #e3f2fd; }\n")
+                .append(".token-number { text-align: center; font-weight: bold; color: #1976d2; }\n")
+                .append(".token-lexema { font-family: 'Courier New', monospace; background: #f5f5f5; padding: 4px 8px; border-radius: 4px; }\n")
+                .append(".token-tipo { color: #388e3c; font-weight: 500; }\n")
+                .append(".footer { background: #343a40; color: white; padding: 20px 30px; text-align: center; font-size: 0.9em; }\n")
                 .append("</style>\n</head>\n<body>\n");
             
-            html.append("<h1>Reporte de Tokens - AutomataLab</h1>\n");
-            html.append("<p>Total de tokens: ").append(tokens.size()).append("</p>\n");
+            html.append("<div class=\"container\">\n")
+                .append("<div class=\"header\">\n")
+                .append("<h1>Tabla de Tokens</h1>\n")
+                .append("<div class=\"subtitle\">Análisis Léxico - AutómataLab</div>\n")
+                .append("</div>\n");
             
-            html.append("<table>\n<tr>\n")
-                .append("<th>#</th><th>Lexema</th><th>Tipo</th><th>Linea</th><th>Columna</th>\n</tr>\n");
+            html.append("<div class=\"content\">\n");
+            html.append("<p style=\"text-align: center; margin-bottom: 20px; font-size: 1.1em;\">\n")
+                .append("<strong>Total de tokens analizados: ").append(tokens.size()).append("</strong>\n")
+                .append("</p>\n");
+            
+            // Tabla según especificación: #, Lexema, Tipo, Línea, Columna
+            html.append("<table>\n<thead>\n<tr>\n")
+                .append("<th class=\"token-number\">#</th>\n")
+                .append("<th>Lexema</th>\n")
+                .append("<th>Tipo</th>\n")
+                .append("<th>Línea</th>\n")
+                .append("<th>Columna</th>\n")
+                .append("</tr>\n</thead>\n<tbody>\n");
             
             for (Token token : tokens) {
                 html.append("<tr>\n")
-                    .append("<td>").append(token.getNumero()).append("</td>\n")
-                    .append("<td>").append(escapeHtml(token.getLexema())).append("</td>\n")
-                    .append("<td>").append(token.getTipo()).append("</td>\n")
+                    .append("<td class=\"token-number\">").append(token.getNumero()).append("</td>\n")
+                    .append("<td class=\"token-lexema\">").append(escapeHtml(token.getLexema())).append("</td>\n")
+                    .append("<td class=\"token-tipo\">").append(token.getTipo()).append("</td>\n")
                     .append("<td>").append(token.getLinea()).append("</td>\n")
                     .append("<td>").append(token.getColumna()).append("</td>\n")
                     .append("</tr>\n");
             }
             
-            html.append("</table>\n</body>\n</html>");
+            html.append("</tbody>\n</table>\n</div>\n");
+            
+            html.append("<div class=\"footer\">\n")
+                .append("Generado el ").append(java.time.LocalDateTime.now().format(
+                    java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy 'a las' HH:mm:ss"))).append("\n")
+                .append("<br>AutómataLab - OLC1 Proyecto 1\n")
+                .append("</div>\n")
+                .append("</div>\n</body>\n</html>");
             
             try (java.io.FileWriter writer = new java.io.FileWriter(archivoSalida)) {
                 writer.write(html.toString());
             }
             
+            System.out.println("Reporte de tokens HTML generado: " + archivoSalida);
+            
         } catch (Exception e) {
-            System.err.println("Error al generar reporte HTML: " + e.getMessage());
+            System.err.println("Error al generar reporte HTML de tokens: " + e.getMessage());
         }
-    }
-    
-    private static String escapeHtml(String text) {
-        return text.replace("&", "&amp;")
-                  .replace("<", "&lt;")
-                  .replace(">", "&gt;")
-                  .replace("\"", "&quot;")
-                  .replace("'", "&#39;");
     }
 }

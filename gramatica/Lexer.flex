@@ -25,7 +25,9 @@ import java_cup.runtime.*;
 LineTerminator = \r|\n|\r\n
 WhiteSpace = {LineTerminator} | [ \t\f]
 
-// Comentarios
+// Comentarios según especificación oficial
+// 3.1.1. Comentarios de una línea: comenzará con // y terminará con un salto de línea
+// 3.1.2. Comentarios multilínea: comienza con /* y termina con */
 CommentLine = "//"[^\r\n]*
 CommentBlock = "/*"([^*]|[\r\n]|("*"+([^*/]|[\r\n])))*"*"+"/"
 Comment = {CommentLine} | {CommentBlock}
@@ -116,14 +118,14 @@ Character = \'([^\'\\]|\\[\'\\nrt0])?\'
     
     {Identifier}           { return symbol(sym.IDENTIFICADOR, yytext()); }
     
-    // Espacios en blanco y comentarios - ignorar
+    // Espacios en blanco y comentarios - ignorar según especificación
     {WhiteSpace}           { /* Ignorar espacios en blanco */ }
-    {Comment}              { /* Ignorar comentarios */ }
+    {Comment}              { /* Ignorar comentarios - tanto // como /* */ */ }
 }
 
 // Manejo de errores léxicos - cualquier otro caracter
 [^] { 
-    String mensaje = "Caracter no valido '" + yytext() + "' en linea " + (yyline+1) + ", columna " + (yycolumn+1);
-    System.err.println("Error lexico: " + mensaje);
+    String mensaje = "El carácter '" + yytext() + "' no pertenece al lenguaje";
+    System.err.println("Error léxico: " + mensaje + " en línea " + (yyline+1) + ", columna " + (yycolumn+1));
     return symbol(sym.error, yytext());
 }

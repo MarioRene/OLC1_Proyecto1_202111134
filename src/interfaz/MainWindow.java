@@ -7,6 +7,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.util.List;
+import java.util.Map;
+
 import analizadores.*;
 import modelos.*;
 import reportes.*;
@@ -340,24 +342,34 @@ public class MainWindow extends JFrame {
     // Métodos mejorados de funcionalidad
     
     private void ejecutar() {
-        statusLabel.setText(" Ejecutando análisis...");
+        statusLabel.setText(" Ejecutando análisis según especificación OLC1...");
         consolePanel.clear();
+        
+        // Limpiar datos anteriores
         Parser.errores.clear();
+        Parser.automatas.clear();
         clearAllReports();
         
         SwingUtilities.invokeLater(() -> {
             try {
                 String input = editorPanel.getText();
                 
+                if (input.trim().isEmpty()) {
+                    consolePanel.append("❌ Error: No hay código para analizar.\n");
+                    statusLabel.setText(" Error: Código vacío");
+                    return;
+                }
+                
                 // Redirigir salida a consola
                 consolePanel.redirectSystemStreams();
                 
-                consolePanel.append("=== INICIANDO ANÁLISIS LÉXICO Y SINTÁCTICO ===\n");
+                consolePanel.append("=== AUTOMATALAB - PROYECTO 1 OLC1 ===\n");
+                consolePanel.append("Análisis Léxico y Sintáctico\n");
                 consolePanel.append("Archivo: " + (currentFile != null ? currentFile.getName() : "Sin título") + "\n");
                 consolePanel.append("Tamaño: " + input.length() + " caracteres, " + 
                                   editorPanel.getTextArea().getLineCount() + " líneas\n");
-                consolePanel.append("Hora: " + java.time.LocalDateTime.now().format(
-                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "\n");
+                consolePanel.append("Fecha: " + java.time.LocalDateTime.now().format(
+                    java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")) + "\n");
                 consolePanel.append("===============================================\n\n");
                 
                 long startTime = System.currentTimeMillis();
@@ -371,34 +383,88 @@ public class MainWindow extends JFrame {
                 
                 long endTime = System.currentTimeMillis();
                 
+                // Restaurar streams originales antes de mostrar reportes
+                consolePanel.restoreSystemStreams();
+                
                 consolePanel.append("\n===============================================\n");
-                consolePanel.append("=== ANÁLISIS COMPLETADO ===\n");
+                consolePanel.append("=== RESULTADO DEL ANÁLISIS ===\n");
                 consolePanel.append("Tiempo de ejecución: " + (endTime - startTime) + " ms\n");
-                consolePanel.append("Autómatas definidos: " + Parser.automatas.size() + "\n");
-                consolePanel.append("Errores encontrados: " + Parser.errores.size() + "\n");
-                consolePanel.append("===============================================\n");
+                consolePanel.append("Autómatas procesados: " + Parser.automatas.size() + "\n");
+                consolePanel.append("Errores detectados: " + Parser.errores.size() + "\n");
                 
-                // Mostrar resultados en las pestañas
-                mostrarTokens();
-                mostrarErrores();
-                mostrarAutomatas();
-                
-                if (Parser.errores.isEmpty()) {
-                    statusLabel.setText(" Análisis completado exitosamente");
-                } else {
-                    statusLabel.setText(" Análisis completado con errores");
+                // Mostrar lista de autómatas según especificación
+                if (!Parser.automatas.isEmpty()) {
+                    consolePanel.append("\n--- Autómatas Definidos ---\n");
+                    for (String nombre : Parser.automatas.keySet()) {
+                        Object automata = Parser.automatas.get(nombre);
+                        String tipo = (automata instanceof AFD) ? "Autómata Finito Determinista" : "Autómata de Pila";
+                        consolePanel.append("✓ " + nombre + " - " + tipo + "\n");
+                    }
                 }
                 
-                // Restaurar streams originales
-                consolePanel.restoreSystemStreams();
+                // Mostrar errores si los hay
+                if (!Parser.errores.isEmpty()) {
+                    consolePanel.append("\n--- Errores Detectados ---\n");
+                    for (int i = 0; i < Parser.errores.size(); i++) {
+                        consolePanel.append((i+1) + ". " + Parser.errores.get(i) + "\n");
+                    }
+                }
+                
+                consolePanel.append("\n===============================================\n");
+                
+                // Mostrar resultados en las pestañas según especificación
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        // Generar reportes según orden de especificación
+                        mostrarAutomatas();           // Primero autómatas
+                        mostrarTokens();             // Luego tokens
+                        mostrarErrores();            // Luego errores
+                        
+                        // Si hay autómatas, generar gráficos automáticamente
+                        if (!Parser.automatas.isEmpty()) {
+                            generarGraficos();
+                            reportTabs.setSelectedIndex(0); // Mostrar autómatas primero
+                        } else if (!Parser.errores.isEmpty()) {
+                            reportTabs.setSelectedIndex(2); // Mostrar errores si los hay
+                        } else {
+                            reportTabs.setSelectedIndex(1); // Mostrar tokens por defecto
+                        }
+                        
+                    } catch (Exception e) {
+                        consolePanel.append("Error al generar reportes: " + e.getMessage() + "\n");
+                        e.printStackTrace();
+                    }
+                });
+                
+                // Actualizar estado según especificación
+                if (Parser.errores.isEmpty() && !Parser.automatas.isEmpty()) {
+                    statusLabel.setText(" ✅ Análisis exitoso - " + Parser.automatas.size() + 
+                                      " autómata(s) procesado(s) correctamente");
+                } else if (!Parser.errores.isEmpty()) {
+                    statusLabel.setText(" ⚠️ Análisis con errores - " + Parser.errores.size() + 
+                                      " error(es) detectado(s)");
+                } else {
+                    statusLabel.setText(" ℹ️ Análisis completado - Sin autómatas definidos");
+                }
                 
             } catch (Exception ex) {
-                consolePanel.append("ERROR: " + ex.getMessage() + "\n");
-                ex.printStackTrace(new PrintStream(consolePanel.getConsoleStream()));
-                statusLabel.setText(" Error durante la ejecución");
-                
                 // Asegurarse de restaurar streams incluso en caso de error
                 consolePanel.restoreSystemStreams();
+                
+                consolePanel.append("\n❌ ERROR CRÍTICO DURANTE EL ANÁLISIS\n");
+                consolePanel.append("Tipo: " + ex.getClass().getSimpleName() + "\n");
+                consolePanel.append("Mensaje: " + ex.getMessage() + "\n");
+                
+                // Agregar error al reporte de errores
+                Parser.errores.add("Error crítico: " + ex.getMessage());
+                
+                statusLabel.setText(" ❌ Error crítico durante el análisis");
+                
+                // Mostrar errores en la pestaña correspondiente
+                SwingUtilities.invokeLater(() -> {
+                    mostrarErrores();
+                    reportTabs.setSelectedIndex(2); // Pestaña de errores
+                });
             }
         });
     }
@@ -473,44 +539,123 @@ public class MainWindow extends JFrame {
     }
     
     private void mostrarAutomatas() {
-        JScrollPane automatasTab = (JScrollPane) reportTabs.getComponentAt(0);
-        JTextArea automatasArea = (JTextArea) automatasTab.getViewport().getView();
-        
-        StringBuilder content = new StringBuilder();
-        if (Parser.automatas.isEmpty()) {
-            content.append("No hay autómatas definidos.\n");
-            content.append("Ejecute el análisis para ver los autómatas creados.");
-        } else {
-            content.append("AUTÓMATAS DEFINIDOS (" + Parser.automatas.size() + "):\n");
-            content.append("═".repeat(50)).append("\n\n");
+        try {
+            JScrollPane automatasTab = (JScrollPane) reportTabs.getComponentAt(0);
+            JTextArea automatasArea = (JTextArea) automatasTab.getViewport().getView();
             
-            int count = 1;
-            for (String nombre : Parser.automatas.keySet()) {
-                Object automata = Parser.automatas.get(nombre);
-                content.append(count++).append(". ");
+            StringBuilder content = new StringBuilder();
+            
+            // Debug: verificar contenido de Parser.automatas
+            System.out.println("[DEBUG] mostrarAutomatas() - Cantidad de autómatas: " + Parser.automatas.size());
+            for (String key : Parser.automatas.keySet()) {
+                System.out.println("[DEBUG] Autómata encontrado: " + key + " - " + Parser.automatas.get(key).getClass().getSimpleName());
+            }
+            
+            if (Parser.automatas.isEmpty()) {
+                content.append("📋 No hay autómatas definidos.\n\n");
+                content.append("Para ver autómatas aquí:\n");
+                content.append("1. Escriba la definición de un autómata en el editor\n");
+                content.append("2. Use la sintaxis correcta (AFD o AP)\n");
+                content.append("3. Haga clic en 'Ejecutar' o presione F5\n\n");
+                content.append("Ejemplo de AFD:\n");
+                content.append("<AFD Nombre=\"MiAFD\">\n");
+                content.append("  N = {q0, q1};\n");
+                content.append("  T = {'a', 'b'};\n");
+                content.append("  I = {q0};\n");
+                content.append("  A = {q1};\n");
+                content.append("  Transiciones:\n");
+                content.append("    q0 -> 'a', q1;\n");
+                content.append("</AFD>");
+            } else {
+                content.append("🤖 AUTÓMATAS DEFINIDOS (").append(Parser.automatas.size()).append(")\n");
+                content.append("═".repeat(60)).append("\n\n");
                 
-                if (automata instanceof AFD) {
-                    AFD afd = (AFD) automata;
-                    content.append("📊 AFD: ").append(nombre).append("\n");
-                    content.append("   Estados: ").append(afd.getEstados().size()).append("\n");
-                    content.append("   Alfabeto: ").append(afd.getAlfabeto().size()).append(" símbolos\n");
-                    content.append("   Estado inicial: ").append(afd.getEstadoInicial()).append("\n");
-                    content.append("   Estados finales: ").append(afd.getEstadosAceptacion().size()).append("\n");
-                } else if (automata instanceof AP) {
-                    AP ap = (AP) automata;
-                    content.append("🏗️ AP: ").append(nombre).append("\n");
-                    content.append("   Estados: ").append(ap.getEstados().size()).append("\n");
-                    content.append("   Alfabeto: ").append(ap.getAlfabeto().size()).append(" símbolos\n");
-                    content.append("   Símbolos de pila: ").append(ap.getSimbolosPila().size()).append("\n");
+                int count = 1;
+                for (Map.Entry<String, Object> entry : Parser.automatas.entrySet()) {
+                    String nombre = entry.getKey();
+                    Object automata = entry.getValue();
+                    
+                    content.append("[").append(count++).append("] ");
+                    
+                    if (automata instanceof AFD) {
+                        AFD afd = (AFD) automata;
+                        content.append("📊 AFD: ").append(nombre).append("\n");
+                        content.append("    ├─ Estados: ").append(afd.getEstados().size())
+                               .append(" → ").append(afd.getEstados()).append("\n");
+                        content.append("    ├─ Alfabeto: ").append(afd.getAlfabeto().size())
+                               .append(" símbolos → ").append(afd.getAlfabeto()).append("\n");
+                        content.append("    ├─ Estado inicial: ").append(afd.getEstadoInicial()).append("\n");
+                        content.append("    ├─ Estados finales: ").append(afd.getEstadosAceptacion().size())
+                               .append(" → ").append(afd.getEstadosAceptacion()).append("\n");
+                        content.append("    ├─ Transiciones: ").append(afd.getTransiciones().values().stream()
+                               .mapToInt(Map::size).sum()).append("\n");
+                        content.append("    ├─ Completo: ").append(afd.esCompleto() ? "✅ Sí" : "❌ No").append("\n");
+                        content.append("    └─ Estados alcanzables: ").append(afd.getEstadosAlcanzables().size())
+                               .append("/").append(afd.getEstados().size()).append("\n");
+                        
+                    } else if (automata instanceof AP) {
+                        AP ap = (AP) automata;
+                        content.append("🏗️ AP: ").append(nombre).append("\n");
+                        content.append("    ├─ Estados: ").append(ap.getEstados().size())
+                               .append(" → ").append(ap.getEstados()).append("\n");
+                        content.append("    ├─ Alfabeto: ").append(ap.getAlfabeto().size())
+                               .append(" símbolos → ").append(ap.getAlfabeto()).append("\n");
+                        content.append("    ├─ Símbolos de pila: ").append(ap.getSimbolosPila().size())
+                               .append(" → ").append(ap.getSimbolosPila()).append("\n");
+                        content.append("    ├─ Estado inicial: ").append(ap.getEstadoInicial()).append("\n");
+                        content.append("    ├─ Estados finales: ").append(ap.getEstadosAceptacion().size())
+                               .append(" → ").append(ap.getEstadosAceptacion()).append("\n");
+                        content.append("    └─ Transiciones: ").append(ap.getTransiciones().size()).append("\n");
+                    } else {
+                        content.append("❓ Tipo desconocido: ").append(nombre)
+                               .append(" (").append(automata.getClass().getSimpleName()).append(")\n");
+                    }
+                    content.append("\n");
                 }
-                content.append("\n");
+                
+                content.append("═".repeat(60)).append("\n");
+                content.append("📈 ESTADÍSTICAS GENERALES:\n");
+                
+                long afdCount = Parser.automatas.values().stream()
+                    .filter(a -> a instanceof AFD).count();
+                long apCount = Parser.automatas.values().stream()
+                    .filter(a -> a instanceof AP).count();
+                
+                content.append("  • AFDs definidos: ").append(afdCount).append("\n");
+                content.append("  • APs definidos: ").append(apCount).append("\n");
+                content.append("  • Total: ").append(Parser.automatas.size()).append(" autómatas\n");
+                
+                content.append("\n💡 ACCIONES DISPONIBLES:\n");
+                content.append("  • Use desc(NombreAutomata); para ver detalles\n");
+                content.append("  • Use NombreAutomata(\"cadena\"); para validar\n");
+                content.append("  • Vea la pestaña 'Gráficos' para visualización\n");
+            }
+            
+            automatasArea.setText(content.toString());
+            automatasArea.setCaretPosition(0);
+            
+            // Solo cambiar a la pestaña si hay autómatas para mostrar
+            if (!Parser.automatas.isEmpty()) {
+                reportTabs.setSelectedIndex(0);
+                statusLabel.setText(" 📊 Mostrando " + Parser.automatas.size() + " autómatas definidos");
+            }
+            
+            System.out.println("[DEBUG] mostrarAutomatas() completado exitosamente");
+            
+        } catch (Exception e) {
+            System.err.println("[ERROR] Error en mostrarAutomatas(): " + e.getMessage());
+            e.printStackTrace();
+            
+            // Mostrar error en la pestaña
+            try {
+                JScrollPane automatasTab = (JScrollPane) reportTabs.getComponentAt(0);
+                JTextArea automatasArea = (JTextArea) automatasTab.getViewport().getView();
+                automatasArea.setText("❌ Error al mostrar autómatas: " + e.getMessage() + 
+                                    "\n\nVerifique la consola para más detalles.");
+            } catch (Exception e2) {
+                System.err.println("[ERROR] Error crítico en mostrarAutomatas(): " + e2.getMessage());
             }
         }
-        
-        automatasArea.setText(content.toString());
-        automatasArea.setCaretPosition(0);
-        reportTabs.setSelectedIndex(0);
-        statusLabel.setText(" Mostrando autómatas definidos");
     }
     
     private void generarGraficos() {
