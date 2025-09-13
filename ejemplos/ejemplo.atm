@@ -100,4 +100,17 @@ AP_Parentesis("()");      // Deberia ser VALIDA
 AP_Parentesis("(())");    // Deberia ser VALIDA
 AP_Parentesis("((()))");  // Deberia ser VALIDA
 AP_Parentesis("(()");     // Deberia ser NO VALIDA
-AP_Parentesis("())");     // Deberia ser NO VALIDA
+AP_Parentesis("())");     // Deberia ser NO VALIDA    N = {S, F}; 
+    T = {0, 1}; 
+    I = {S}; 
+    A = {F}; 
+Transiciones: 
+    S -> 0, F | 1, S ; 
+    F -> 0, F | 1, S ; 
+</AFD> 
+ 
+verAutomatas(); 
+desc(AFD_Simple); 
+AFD_Simple("1010"); 
+desc(AFD_Simple); 
+AFD_Simple("1010"); 

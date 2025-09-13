@@ -100,9 +100,6 @@ public class AFD {
             }
             
             // VALIDACIÓN CRÍTICA DE DETERMINISMO (según especificación)
-            // "Se deberá verificar que las transiciones ingresadas correspondan a un AFD, 
-            // por ejemplo, si se intenta hacer más de una transición de un estado con el
-            // mismo símbolo, se debe mostrar un error."
             Map<Character, String> transEstado = this.transiciones.get(transAFD.getOrigen());
             if (transEstado.containsKey(transAFD.getSimbolo())) {
                 String existente = transEstado.get(transAFD.getSimbolo());
@@ -183,64 +180,6 @@ public class AFD {
         return esAceptado;
     }
     
-    public List<String> validarCadenaConPasos(String cadena) {
-        List<String> pasos = new ArrayList<>();
-        
-        if (cadena == null) {
-            pasos.add("ERROR: Cadena no puede ser nula");
-            return pasos;
-        }
-        
-        pasos.add("=== ANÁLISIS PASO A PASO ===");
-        pasos.add("AFD: " + nombre);
-        pasos.add("Cadena: \"" + cadena + "\"");
-        pasos.add("Longitud: " + cadena.length());
-        pasos.add("");
-        
-        String estadoActual = estadoInicial;
-        pasos.add("Configuración inicial: (q₀=" + estadoActual + ", w=\"" + cadena + "\")");
-        pasos.add("");
-        
-        for (int i = 0; i < cadena.length(); i++) {
-            char simbolo = cadena.charAt(i);
-            String restoCadena = cadena.substring(i + 1);
-            
-            pasos.add("Paso " + (i + 1) + ":");
-            pasos.add("  Configuración: (q=" + estadoActual + ", w=\"" + simbolo + restoCadena + "\")");
-            
-            if (!alfabeto.contains(simbolo)) {
-                pasos.add("  ERROR: Símbolo '" + simbolo + "' ∉ Σ = " + alfabeto);
-                pasos.add("  Cadena RECHAZADA");
-                return pasos;
-            }
-            
-            Map<Character, String> transEstado = transiciones.get(estadoActual);
-            if (transEstado == null || !transEstado.containsKey(simbolo)) {
-                pasos.add("  ERROR: δ(" + estadoActual + ", '" + simbolo + "') no definida");
-                pasos.add("  Transiciones disponibles: " + 
-                         (transEstado != null ? transEstado.keySet() : "∅"));
-                pasos.add("  Cadena RECHAZADA");
-                return pasos;
-            }
-            
-            String nuevoEstado = transEstado.get(simbolo);
-            pasos.add("  Transición: δ(" + estadoActual + ", '" + simbolo + "') = " + nuevoEstado);
-            estadoActual = nuevoEstado;
-            pasos.add("  Nueva configuración: (q=" + estadoActual + ", w=\"" + restoCadena + "\")");
-            pasos.add("");
-        }
-        
-        boolean esAceptado = estadosAceptacion.contains(estadoActual);
-        pasos.add("Configuración final: (q=" + estadoActual + ", w=ε)");
-        pasos.add("Verificación: " + estadoActual + (esAceptado ? " ∈ " : " ∉ ") + 
-                 "F = " + estadosAceptacion);
-        pasos.add("");
-        pasos.add("RESULTADO: Cadena " + (esAceptado ? "ACEPTADA" : "RECHAZADA"));
-        pasos.add("========================");
-        
-        return pasos;
-    }
-    
     public void descripcion() {
         System.out.println("\n📊 DESCRIPCIÓN DEL AFD");
         System.out.println("═".repeat(40));
@@ -295,42 +234,6 @@ public class AFD {
         System.out.println("═".repeat(40));
     }
     
-    public String getDescripcionCompleta() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("AFD: ").append(nombre).append("\n");
-        sb.append("Q = ").append(estados).append("\n");
-        
-        StringBuilder alfabetoStr = new StringBuilder();
-        boolean first = true;
-        for (Character c : alfabeto) {
-            if (!first) alfabetoStr.append(", ");
-            alfabetoStr.append("'").append(c).append("'");
-            first = false;
-        }
-        sb.append("Σ = {").append(alfabetoStr.toString()).append("}\n");
-        sb.append("q₀ = ").append(estadoInicial).append("\n");
-        sb.append("F = ").append(estadosAceptacion).append("\n");
-        sb.append("δ:\n");
-        
-        for (String estado : new TreeSet<>(estados)) {
-            Map<Character, String> trans = transiciones.get(estado);
-            if (trans != null && !trans.isEmpty()) {
-                for (Map.Entry<Character, String> entry : new TreeMap<>(trans).entrySet()) {
-                    sb.append("  δ(").append(estado).append(", '").append(entry.getKey())
-                      .append("') = ").append(entry.getValue()).append("\n");
-                }
-            }
-        }
-        
-        sb.append("\nPropiedades:\n");
-        sb.append("- Estados: ").append(estados.size()).append("\n");
-        sb.append("- Símbolos: ").append(alfabeto.size()).append("\n");
-        sb.append("- Transiciones: ").append(contarTransiciones()).append("\n");
-        sb.append("- Completo: ").append(esCompleto() ? "Sí" : "No").append("\n");
-        
-        return sb.toString();
-    }
-    
     public boolean esCompleto() {
         for (String estado : estados) {
             Map<Character, String> transEstado = transiciones.get(estado);
@@ -368,12 +271,6 @@ public class AFD {
         return alcanzables;
     }
     
-    public Set<String> getEstadosInalcanzables() {
-        Set<String> inalcanzables = new HashSet<>(estados);
-        inalcanzables.removeAll(getEstadosAlcanzables());
-        return inalcanzables;
-    }
-    
     // Getters
     public String getNombre() { return nombre; }
     public Set<String> getEstados() { return new HashSet<>(estados); }
@@ -388,7 +285,7 @@ public class AFD {
         return copia;
     }
     
-    // Método para generar código DOT mejorado (Graphviz)
+    // Método para generar código DOT para Graphviz - VERSIÓN ÚNICA Y MEJORADA
     public String generarDot() {
         StringBuilder dot = new StringBuilder();
         String nombreLimpio = nombre.replaceAll("[^a-zA-Z0-9_]", "_");
@@ -396,40 +293,51 @@ public class AFD {
         dot.append("digraph ").append(nombreLimpio).append(" {\n");
         dot.append("  // Configuración general\n");
         dot.append("  rankdir=LR;\n");
-        dot.append("  node [fontname=\"Arial\", fontsize=12];\n");
-        dot.append("  edge [fontname=\"Arial\", fontsize=10];\n");
+        dot.append("  size=\"10,8\";\n");
+        dot.append("  node [shape=circle, style=filled, fillcolor=white, fontname=\"Arial\", fontsize=14];\n");
+        dot.append("  edge [fontname=\"Arial\", fontsize=12, color=black];\n");
+        dot.append("  bgcolor=white;\n");
         dot.append("  \n");
         
-        dot.append("  // Título del autómata\n");
+        // Título del autómata
+        dot.append("  // Título\n");
         dot.append("  label=\"AFD: ").append(nombre).append("\";\n");
         dot.append("  labelloc=top;\n");
         dot.append("  labeljust=center;\n");
-        dot.append("  fontsize=16;\n");
+        dot.append("  fontsize=18;\n");
+        dot.append("  fontname=\"Arial Bold\";\n");
+        dot.append("  fontcolor=blue;\n");
         dot.append("  \n");
         
-        // Nodo invisible para la flecha inicial
-        dot.append("  // Estado inicial\n");
-        dot.append("  __start [shape=point, style=invis, width=0];\n");
-        dot.append("  __start -> \"").append(estadoInicial).append("\" [label=\"inicio\"];\n");
+        // Nodo invisible para flecha inicial
+        dot.append("  // Punto de inicio\n");
+        dot.append("  __start [shape=point, style=invis, width=0, height=0];\n");
+        dot.append("  __start -> \"").append(estadoInicial).append("\" [label=\"inicio\", color=blue, penwidth=2, fontcolor=blue];\n");
         dot.append("  \n");
         
         // Definir estilos de estados
-        dot.append("  // Definición de estados\n");
+        dot.append("  // Estados\n");
         for (String estado : estados) {
             if (estadosAceptacion.contains(estado)) {
-                dot.append("  \"").append(estado).append("\" [shape=doublecircle, style=filled, fillcolor=lightgreen];\n");
+                if (estado.equals(estadoInicial)) {
+                    // Estado inicial Y de aceptación
+                    dot.append("  \"").append(estado).append("\" [shape=doublecircle, style=filled, fillcolor=\"lightgreen\", penwidth=3, color=blue];\n");
+                } else {
+                    // Solo estado de aceptación
+                    dot.append("  \"").append(estado).append("\" [shape=doublecircle, style=filled, fillcolor=\"lightgreen\", penwidth=2];\n");
+                }
+            } else if (estado.equals(estadoInicial)) {
+                // Solo estado inicial
+                dot.append("  \"").append(estado).append("\" [shape=circle, style=filled, fillcolor=\"lightblue\", penwidth=3, color=blue];\n");
             } else {
-                dot.append("  \"").append(estado).append("\" [shape=circle];\n");
+                // Estado normal
+                dot.append("  \"").append(estado).append("\" [shape=circle, style=filled, fillcolor=\"white\", penwidth=1];\n");
             }
-        }
-        
-        if (estadoInicial != null && !estadosAceptacion.contains(estadoInicial)) {
-            dot.append("  \"").append(estadoInicial).append("\" [style=filled, fillcolor=lightblue];\n");
         }
         
         dot.append("  \n");
         
-        // Transiciones agrupadas por estados origen-destino
+        // Agrupar transiciones por origen-destino para mejor visualización
         dot.append("  // Transiciones\n");
         Map<String, List<Character>> transicionesAgrupadas = new HashMap<>();
         
@@ -455,18 +363,35 @@ public class AFD {
                 etiqueta.append(simbolos.get(i));
             }
             
-            dot.append("  \"").append(origen).append("\" -> \"").append(destino)
-               .append("\" [label=\"").append(etiqueta).append("\"];\n");
+            // Estilo especial para auto-transiciones (loops)
+            if (origen.equals(destino)) {
+                dot.append("  \"").append(origen).append("\" -> \"").append(destino)
+                   .append("\" [label=\"").append(etiqueta).append("\", color=red, style=bold")
+                   .append(", headport=n, tailport=n, penwidth=2];\n");
+            } else {
+                dot.append("  \"").append(origen).append("\" -> \"").append(destino)
+                   .append("\" [label=\"").append(etiqueta).append("\", penwidth=1.5];\n");
+            }
         }
         
         dot.append("  \n");
-        dot.append("  // Información adicional\n");
-        dot.append("  info [shape=plaintext, label=\"");
+        
+        // Información del autómata en un subgrafo
+        dot.append("  // Información\n");
+        dot.append("  subgraph cluster_legend {\n");
+        dot.append("    style=filled;\n");
+        dot.append("    color=lightgrey;\n");
+        dot.append("    fontsize=12;\n");
+        dot.append("    label=\"Información del AFD\";\n");
+        dot.append("    \n");
+        dot.append("    legend [shape=plaintext, label=\"");
         dot.append("Estados: ").append(estados.size()).append("\\n");
-        dot.append("Alfabeto: ").append(alfabeto.size()).append(" símbolos\\n");
+        dot.append("Alfabeto: ").append(alfabeto).append("\\n");
         dot.append("Transiciones: ").append(contarTransiciones()).append("\\n");
-        dot.append("Completo: ").append(esCompleto() ? "Sí" : "No");
-        dot.append("\", pos=\"1,1!\"];\n");
+        dot.append("Completo: ").append(esCompleto() ? "Sí" : "No").append("\\n");
+        dot.append("Determinista: Sí");
+        dot.append("\", fontsize=10, fontname=\"Arial\"];\n");
+        dot.append("  }\n");
         
         dot.append("}\n");
         return dot.toString();

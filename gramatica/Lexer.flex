@@ -25,38 +25,45 @@ import java_cup.runtime.*;
 LineTerminator = \r|\n|\r\n
 WhiteSpace = {LineTerminator} | [ \t\f]
 
-// Comentarios según especificación oficial
-// 3.1.1. Comentarios de una línea: comenzará con // y terminará con un salto de línea
-// 3.1.2. Comentarios multilínea: comienza con /* y termina con */
+// Comentarios
 CommentLine = "//"[^\r\n]*
 CommentBlock = "/*"([^*]|[\r\n]|("*"+([^*/]|[\r\n])))*"*"+"/"
 Comment = {CommentLine} | {CommentBlock}
 
-// Literales
+// Literales básicos
 Identifier = [a-zA-Z_][a-zA-Z0-9_]*
+Number = [0-9]+
 String = \"([^\"\\]|\\[\"\\nrt])*\"
 Character = \'([^\'\\]|\\[\'\\nrt0])?\'
 
 %%
 
 <YYINITIAL> {
-    // Palabras reservadas y etiquetas (orden importante - más específico primero)
-    "<AFD"                 { return symbol(sym.AFD_INI); }
+    // ORDEN CRÍTICO: Patrones más específicos PRIMERO
+    
+    // Etiquetas XML (más largas primero)
     "</AFD>"               { return symbol(sym.AFD_FIN); }
-    "<AP"                  { return symbol(sym.AP_INI); }
     "</AP>"                { return symbol(sym.AP_FIN); }
-    "Transiciones"         { return symbol(sym.TRANSICIONES); }
+    "<AFD"                 { return symbol(sym.AFD_INI); }
+    "<AP"                  { return symbol(sym.AP_INI); }
+    
+    // Palabras reservadas (más largas primero)
     "verAutomatas"         { return symbol(sym.VER_AUTOMATAS); }
+    "Transiciones"         { return symbol(sym.TRANSICIONES); }
     "Nombre"               { return symbol(sym.NOMBRE); }
     "desc"                 { return symbol(sym.DESC); }
+    
+    // CRUCIAL: Flecha ANTES de cualquier símbolo individual
+    "->"                   { return symbol(sym.FLECHA); }
+    
+    // Letras individuales (después de palabras completas)
     "N"                    { return symbol(sym.N); }
     "T"                    { return symbol(sym.T); }
     "P"                    { return symbol(sym.P); }
     "I"                    { return symbol(sym.I); }
     "A"                    { return symbol(sym.A); }
     
-    // Símbolos (orden importante)
-    "->"                   { return symbol(sym.FLECHA); }
+    // Símbolos de puntuación
     "="                    { return symbol(sym.IGUAL); }
     "{"                    { return symbol(sym.LLAVE_IZQ); }
     "}"                    { return symbol(sym.LLAVE_DER); }
@@ -71,10 +78,8 @@ Character = \'([^\'\\]|\\[\'\\nrt0])?\'
     // Literales
     {String}               { 
         String content = yytext();
-        // Remover comillas del inicio y final
         if (content.length() >= 2) {
             content = content.substring(1, content.length()-1);
-            // Procesar secuencias de escape básicas
             content = content.replace("\\\"", "\"")
                             .replace("\\\\", "\\")
                             .replace("\\n", "\n")
@@ -86,14 +91,12 @@ Character = \'([^\'\\]|\\[\'\\nrt0])?\'
     
     {Character}            { 
         String charText = yytext();
-        char c = ' '; // valor por defecto
+        char c = ' ';
         
         if (charText.length() >= 2) {
             if (charText.length() == 3) {
-                // Caracter simple: 'a'
                 c = charText.charAt(1);
             } else if (charText.length() == 4 && charText.charAt(1) == '\\') {
-                // Caracter con escape: '\n'
                 char escaped = charText.charAt(2);
                 switch (escaped) {
                     case 'n': c = '\n'; break;
@@ -105,10 +108,8 @@ Character = \'([^\'\\]|\\[\'\\nrt0])?\'
                     default: c = escaped; break;
                 }
             } else if (charText.length() == 2) {
-                // Caso especial para caracteres vacíos '' - usar espacio
                 c = ' ';
             } else {
-                // Fallback
                 c = charText.charAt(1);
             }
         }
@@ -116,14 +117,32 @@ Character = \'([^\'\\]|\\[\'\\nrt0])?\'
         return symbol(sym.CARACTER, c); 
     }
     
+    // Identificadores alfanuméricos
     {Identifier}           { return symbol(sym.IDENTIFICADOR, yytext()); }
     
-    // Espacios en blanco y comentarios - ignorar según especificación
-    {WhiteSpace}           { /* Ignorar espacios en blanco */ }
-    {Comment}              { /* Ignorar comentarios - tanto // como /* */ */ }
+    // Números como identificadores (para símbolos como 0, 1)
+    {Number}               { return symbol(sym.IDENTIFICADOR, yytext()); }
+    
+    // Espacios en blanco y comentarios
+    {WhiteSpace}           { /* Ignorar */ }
+    {Comment}              { /* Ignorar */ }
+    
+    // Caracteres especiales específicos (NO incluir - ni > para preservar ->)
+    "#"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "@"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "%"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "&"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "*"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "+"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "/"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "?"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "~"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "^"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "_"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
+    "!"                    { return symbol(sym.IDENTIFICADOR, yytext()); }
 }
 
-// Manejo de errores léxicos - cualquier otro caracter
+// Manejo de errores léxicos
 [^] { 
     String mensaje = "El carácter '" + yytext() + "' no pertenece al lenguaje";
     System.err.println("Error léxico: " + mensaje + " en línea " + (yyline+1) + ", columna " + (yycolumn+1));

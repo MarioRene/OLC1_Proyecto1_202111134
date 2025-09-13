@@ -58,12 +58,11 @@ non terminal List<Transicion> grupo_trans_ap;
 non terminal Transicion trans_afd_simple;
 non terminal Transicion trans_ap_simple;
 
-// Precedencias para resolver conflictos
+// Precedencias
 precedence left OR;
 precedence left FLECHA;
 precedence left COMA;
 
-// Símbolo de inicio
 start with programa;
 
 // Reglas gramaticales
@@ -85,13 +84,14 @@ elemento ::= definicion_afd
 definicion_afd ::= AFD_INI NOMBRE IGUAL CADENA:nombre LLAVE_DER 
                    N IGUAL LLAVE_IZQ lista_estados:estados LLAVE_DER PUNTO_COMA
                    T IGUAL LLAVE_IZQ lista_simbolos:alfabeto LLAVE_DER PUNTO_COMA
-                   I IGUAL LLAVE_IZQ IDENTIFICADOR:inicial LLAVE_DER PUNTO_COMA
+                   I IGUAL LLAVE_IZQ lista_estados:inicial LLAVE_DER PUNTO_COMA
                    A IGUAL LLAVE_IZQ lista_estados:aceptacion LLAVE_DER PUNTO_COMA
                    TRANSICIONES DOS_PUNTOS transiciones_afd:trans 
                    AFD_FIN 
                  {: 
                    try {
-                       AFD nuevoAFD = new AFD(nombre, estados, alfabeto, inicial, aceptacion, trans);
+                       String estadoInicial = inicial.isEmpty() ? "" : inicial.get(0);
+                       AFD nuevoAFD = new AFD(nombre, estados, alfabeto, estadoInicial, aceptacion, trans);
                        parser.automatas.put(nombre, nuevoAFD);
                        RESULT = nuevoAFD;
                        System.out.println("AFD '" + nombre + "' definido correctamente");
@@ -106,13 +106,14 @@ definicion_ap ::= AP_INI NOMBRE IGUAL CADENA:nombre LLAVE_DER
                   N IGUAL LLAVE_IZQ lista_estados:estados LLAVE_DER PUNTO_COMA
                   T IGUAL LLAVE_IZQ lista_simbolos:alfabeto LLAVE_DER PUNTO_COMA
                   P IGUAL LLAVE_IZQ lista_simbolos:pila LLAVE_DER PUNTO_COMA
-                  I IGUAL LLAVE_IZQ IDENTIFICADOR:inicial LLAVE_DER PUNTO_COMA
+                  I IGUAL LLAVE_IZQ lista_estados:inicial LLAVE_DER PUNTO_COMA
                   A IGUAL LLAVE_IZQ lista_estados:aceptacion LLAVE_DER PUNTO_COMA
                   TRANSICIONES DOS_PUNTOS transiciones_ap:trans 
                   AP_FIN 
                 {: 
                   try {
-                      AP nuevoAP = new AP(nombre, estados, alfabeto, pila, inicial, aceptacion, trans);
+                      String estadoInicial = inicial.isEmpty() ? "" : inicial.get(0);
+                      AP nuevoAP = new AP(nombre, estados, alfabeto, pila, estadoInicial, aceptacion, trans);
                       parser.automatas.put(nombre, nuevoAP);
                       RESULT = nuevoAP;
                       System.out.println("AP '" + nombre + "' definido correctamente");
@@ -135,7 +136,6 @@ lista_estados ::= IDENTIFICADOR:e
                     RESULT = lista;
                 :} ;
 
-// Lista de símbolos - acepta tanto caracteres como identificadores
 lista_simbolos ::= simbolo:c 
                  {: 
                      List<Character> lista = new ArrayList<>(); 
@@ -148,25 +148,23 @@ lista_simbolos ::= simbolo:c
                      RESULT = lista;
                  :} ;
 
-// Símbolo flexible - acepta CARACTER ('a') o IDENTIFICADOR (a)
 simbolo ::= CARACTER:c
           {:
               RESULT = c;
           :}
           | IDENTIFICADOR:id
           {:
-              // Convertir identificador a caracter
-              if (id.length() == 1) {
+              if (id != null && id.length() >= 1) {
                   RESULT = id.charAt(0);
-              } else if (id.equals("$")) {
-                  RESULT = '$';
               } else {
-                  // Para identificadores más largos, tomar primer caracter
-                  RESULT = id.charAt(0);
+                  RESULT = ' ';
               }
+          :}
+          | DOLAR
+          {:
+              RESULT = '$';
           :} ;
 
-// Transiciones AFD
 transiciones_afd ::= grupo_trans_afd:grupo PUNTO_COMA 
                    {: 
                        RESULT = grupo; 
@@ -180,21 +178,28 @@ transiciones_afd ::= grupo_trans_afd:grupo PUNTO_COMA
 grupo_trans_afd ::= trans_afd_simple:t
                   {: 
                       List<Transicion> lista = new ArrayList<>();
-                      lista.add(t);
+                      if (t != null) {
+                          lista.add(t);
+                      }
                       RESULT = lista; 
                   :}
                   | grupo_trans_afd:lista OR trans_afd_simple:t
                   {: 
-                      lista.add(t);
+                      if (t != null) {
+                          lista.add(t);
+                      }
                       RESULT = lista; 
                   :} ;
 
 trans_afd_simple ::= IDENTIFICADOR:origen FLECHA simbolo:s COMA IDENTIFICADOR:destino
                    {: 
-                       RESULT = new TransicionAFD(origen, s, destino); 
+                       if (origen != null && s != null && destino != null) {
+                           RESULT = new TransicionAFD(origen, s, destino); 
+                       } else {
+                           RESULT = null;
+                       }
                    :} ;
 
-// Transiciones AP  
 transiciones_ap ::= grupo_trans_ap:grupo PUNTO_COMA 
                   {: 
                       RESULT = grupo; 
@@ -208,12 +213,16 @@ transiciones_ap ::= grupo_trans_ap:grupo PUNTO_COMA
 grupo_trans_ap ::= trans_ap_simple:t
                  {: 
                      List<Transicion> lista = new ArrayList<>();
-                     lista.add(t);
+                     if (t != null) {
+                         lista.add(t);
+                     }
                      RESULT = lista; 
                  :}
                  | grupo_trans_ap:lista OR trans_ap_simple:t
                  {: 
-                     lista.add(t);
+                     if (t != null) {
+                         lista.add(t);
+                     }
                      RESULT = lista; 
                  :} ;
 
@@ -221,10 +230,14 @@ trans_ap_simple ::= IDENTIFICADOR:origen PAREN_IZQ simbolo:entrada PAREN_DER
                     FLECHA PAREN_IZQ simbolo:extrae PAREN_DER COMA 
                     IDENTIFICADOR:destino DOS_PUNTOS PAREN_IZQ simbolo:inserta PAREN_DER
                   {: 
-                      RESULT = new TransicionAP(origen, entrada, extrae, destino, inserta); 
+                      if (origen != null && entrada != null && extrae != null && 
+                          destino != null && inserta != null) {
+                          RESULT = new TransicionAP(origen, entrada, extrae, destino, inserta); 
+                      } else {
+                          RESULT = null;
+                      }
                   :} ;
 
-// Llamadas a funciones según especificación
 llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA 
                   {: 
                     System.out.println("Salida:");
@@ -250,7 +263,6 @@ llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA
                             System.out.println("Tipo: Autómata Finito Determinista");
                             System.out.println("Estados: " + String.join(", ", afd.getEstados()));
                             
-                            // Formatear alfabeto
                             StringBuilder alfabeto = new StringBuilder();
                             boolean first = true;
                             for (Character c : afd.getAlfabeto()) {
@@ -262,26 +274,11 @@ llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA
                             System.out.println("Estado Inicial: " + afd.getEstadoInicial());
                             System.out.println("Estados de aceptación: " + String.join(", ", afd.getEstadosAceptacion()));
                             
-                            // Mostrar transiciones en formato simplificado
-                            System.out.print("Transiciones: ");
-                            StringBuilder trans = new StringBuilder();
-                            boolean firstTrans = true;
-                            for (String estado : afd.getTransiciones().keySet()) {
-                                Map<Character, String> estadoTrans = afd.getTransiciones().get(estado);
-                                for (Map.Entry<Character, String> entry : estadoTrans.entrySet()) {
-                                    if (!firstTrans) trans.append(", ");
-                                    trans.append(estado).append(" -> ").append(entry.getKey()).append(", ").append(entry.getValue());
-                                    firstTrans = false;
-                                }
-                            }
-                            System.out.println(trans.toString() + " ... ;");
-                            
                         } else if (automata instanceof AP) {
                             AP ap = (AP) automata;
                             System.out.println("Tipo: Autómata de Pila");
                             System.out.println("Estados: " + String.join(", ", ap.getEstados()));
                             
-                            // Formatear alfabeto
                             StringBuilder alfabeto = new StringBuilder();
                             boolean first = true;
                             for (Character c : ap.getAlfabeto()) {
@@ -290,19 +287,8 @@ llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA
                                 first = false;
                             }
                             System.out.println("Alfabeto: " + alfabeto.toString());
-                            
-                            // Formatear símbolos de pila
-                            StringBuilder pila = new StringBuilder();
-                            first = true;
-                            for (Character c : ap.getSimbolosPila()) {
-                                if (!first) pila.append(", ");
-                                pila.append(c);
-                                first = false;
-                            }
-                            System.out.println("Símbolos de Pila: " + pila.toString());
                             System.out.println("Estado Inicial: " + ap.getEstadoInicial());
                             System.out.println("Estados de aceptación: " + String.join(", ", ap.getEstadosAceptacion()));
-                            System.out.println("Transiciones: [Formato AP] ... ;");
                         }
                     } else {
                         System.out.println("Error: Automata '" + nombre + "' no encontrado");
@@ -320,7 +306,6 @@ llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA
                             } else {
                                 valida = ((AP)automata).validarCadena(cadena);
                             }
-                            // Formato según especificación: "AFD_1 110 Cadena Válida"
                             System.out.println("Salida:");
                             System.out.println(nombre + " " + cadena + " " + (valida ? "Cadena Válida" : "Cadena No Válida"));
                         } catch (Exception e) {
