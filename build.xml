@@ -13,16 +13,21 @@
     
     <target name="clean">
         <delete dir="${build.dir}"/>
+        <!-- Limpiar archivos generados -->
+        <delete file="${src.dir}/analizadores/Lexer.java"/>
+        <delete file="${src.dir}/analizadores/Parser.java"/>
+        <delete file="${src.dir}/analizadores/sym.java"/>
     </target>
     
     <target name="init">
         <mkdir dir="${build.dir}"/>
         <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${src.dir}/analizadores"/>
     </target>
     
     <!-- Generar analizador léxico con JFlex -->
     <target name="generate-lexer" depends="init">
-        <java jar="${lib.dir}/iflex-full-1.7.0.jar" fork="true">
+        <java jar="${lib.dir}/jflex-full-1.7.0.jar" fork="true">
             <arg value="-d"/>
             <arg value="${src.dir}/analizadores"/>
             <arg value="${gramatica.dir}/Lexer.flex"/>
@@ -42,7 +47,10 @@
     
     <!-- Compilar todo el proyecto -->
     <target name="compile" depends="generate-lexer, generate-parser">
-        <javac srcdir="${src.dir}" destdir="${classes.dir}" classpathref="classpath" includeantruntime="false"/>
+        <javac srcdir="${src.dir}" destdir="${classes.dir}" classpathref="classpath" 
+               includeantruntime="false" encoding="UTF-8">
+            <compilerarg value="-Xlint:unchecked"/>
+        </javac>
     </target>
     
     <!-- Crear JAR ejecutable -->
@@ -51,13 +59,22 @@
         <jar destfile="${jar.dir}/AutomataLab.jar" basedir="${classes.dir}">
             <manifest>
                 <attribute name="Main-Class" value="main.Main"/>
-                <attribute name="Class-Path" value="lib/java-cup-11b-runtime.jar lib/iflex-full-1.7.0.jar"/>
+                <attribute name="Class-Path" value="../lib/java-cup-11b-runtime.jar"/>
             </manifest>
-            <fileset dir="${src.dir}" includes="**/*.class"/>
+            <!-- Incluir librerías necesarias -->
+            <zipfileset excludes="META-INF/*.SF" src="${lib.dir}/java-cup-11b-runtime.jar"/>
         </jar>
     </target>
     
     <target name="run" depends="jar">
         <java jar="${jar.dir}/AutomataLab.jar" fork="true"/>
+    </target>
+    
+    <!-- Target para desarrollo rápido -->
+    <target name="dev" depends="clean, compile">
+        <java classname="main.Main" fork="true">
+            <classpath refid="classpath"/>
+            <classpath path="${classes.dir}"/>
+        </java>
     </target>
 </project>

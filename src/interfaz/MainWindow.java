@@ -12,7 +12,6 @@ import java_cup.runtime.Symbol;
 public class MainWindow extends JFrame {
     private EditorPanel editorPanel;
     private ConsolePanel consolePanel;
-    private JTabbedPane tabbedPane;
     private JLabel statusLabel;
     private JLabel positionLabel;
     private File currentFile;
@@ -69,25 +68,27 @@ public class MainWindow extends JFrame {
         
         // Menú Archivo
         JMenu archivoMenu = new JMenu("Archivo");
-        addMenuItem(archivoMenu, "Nuevo", "Ctrl+N", e -> nuevoArchivo());
-        addMenuItem(archivoMenu, "Abrir", "Ctrl+O", e -> abrirArchivo());
-        addMenuItem(archivoMenu, "Guardar", "Ctrl+S", e -> guardarArchivo());
-        addMenuItem(archivoMenu, "Guardar como...", "Ctrl+Shift+S", e -> guardarComoArchivo());
+        addMenuItem(archivoMenu, "Nuevo", "ctrl N", e -> nuevoArchivo());
+        addMenuItem(archivoMenu, "Abrir", "ctrl O", e -> abrirArchivo());
+        addMenuItem(archivoMenu, "Guardar", "ctrl S", e -> guardarArchivo());
+        addMenuItem(archivoMenu, "Guardar como...", "ctrl shift S", e -> guardarComoArchivo());
         archivoMenu.addSeparator();
-        addMenuItem(archivoMenu, "Salir", "Alt+F4", e -> salir());
+        addMenuItem(archivoMenu, "Salir", "alt F4", e -> salir());
         
         // Menú Editar
         JMenu editarMenu = new JMenu("Editar");
-        addMenuItem(editarMenu, "Cortar", "Ctrl+X", e -> editorPanel.getTextArea().cut());
-        addMenuItem(editarMenu, "Copiar", "Ctrl+C", e -> editorPanel.getTextArea().copy());
-        addMenuItem(editarMenu, "Pegar", "Ctrl+V", e -> editorPanel.getTextArea().paste());
+        addMenuItem(editarMenu, "Cortar", "ctrl X", e -> editorPanel.getTextArea().cut());
+        addMenuItem(editarMenu, "Copiar", "ctrl C", e -> editorPanel.getTextArea().copy());
+        addMenuItem(editarMenu, "Pegar", "ctrl V", e -> editorPanel.getTextArea().paste());
+        addMenuItem(editarMenu, "Deshacer", "ctrl Z", e -> editorPanel.undo());
+        addMenuItem(editarMenu, "Rehacer", "ctrl Y", e -> editorPanel.redo());
         editarMenu.addSeparator();
-        addMenuItem(editarMenu, "Buscar", "Ctrl+F", e -> mostrarDialogoBusqueda());
+        addMenuItem(editarMenu, "Buscar", "ctrl F", e -> mostrarDialogoBusqueda());
         
         // Menú Ejecutar
         JMenu ejecutarMenu = new JMenu("Ejecutar");
         addMenuItem(ejecutarMenu, "Ejecutar", "F5", e -> ejecutar());
-        addMenuItem(ejecutarMenu, "Limpiar Consola", "Ctrl+L", e -> consolePanel.clear());
+        addMenuItem(ejecutarMenu, "Limpiar Consola", "ctrl L", e -> consolePanel.clear());
         
         // Menú Reportes
         JMenu reportesMenu = new JMenu("Reportes");
@@ -259,7 +260,6 @@ public class MainWindow extends JFrame {
     }
     
     private boolean hayModificacionesSinGuardar() {
-        // Implementación simple - en una aplicación real se compararía con la última versión guardada
         return !editorPanel.getText().trim().isEmpty();
     }
     
@@ -295,37 +295,39 @@ public class MainWindow extends JFrame {
         consolePanel.clear();
         Parser.errores.clear();
         
-        try {
-            String input = editorPanel.getText();
-            
-            // Redirigir salida a consola
-            System.setOut(consolePanel.getConsoleStream());
-            System.setErr(consolePanel.getConsoleStream());
-            
-            consolePanel.append("=== INICIANDO ANÁLISIS ===\n");
-            long startTime = System.currentTimeMillis();
-            
-            // Crear analizadores
-            Lexer lexer = new Lexer(new StringReader(input));
-            Parser parser = new Parser(lexer);
-            
-            // Ejecutar análisis
-            parser.parse();
-            
-            long endTime = System.currentTimeMillis();
-            consolePanel.append("\n=== ANÁLISIS COMPLETADO ===\n");
-            consolePanel.append("Tiempo de ejecución: " + (endTime - startTime) + " ms\n");
-            consolePanel.append("Autómatas definidos: " + Parser.automatas.size() + "\n");
-            consolePanel.append("Errores encontrados: " + Parser.errores.size() + "\n");
-            
-            statusLabel.setText(" Análisis completado - " + Parser.automatas.size() + " autómatas, " + 
-                               Parser.errores.size() + " errores");
-            
-        } catch (Exception e) {
-            consolePanel.append("Error durante la ejecución: " + e.getMessage() + "\n");
-            statusLabel.setText(" Error en ejecución");
-            e.printStackTrace();
-        }
+        SwingUtilities.invokeLater(() -> {
+            try {
+                String input = editorPanel.getText();
+                
+                // Redirigir salida a consola
+                System.setOut(consolePanel.getConsoleStream());
+                System.setErr(consolePanel.getConsoleStream());
+                
+                consolePanel.append("=== INICIANDO ANÁLISIS ===\n");
+                long startTime = System.currentTimeMillis();
+                
+                // Crear analizadores
+                Lexer lexer = new Lexer(new StringReader(input));
+                Parser parser = new Parser(lexer);
+                
+                // Ejecutar análisis
+                Symbol result = parser.parse();
+                
+                long endTime = System.currentTimeMillis();
+                consolePanel.append("\n=== ANÁLISIS COMPLETADO ===\n");
+                consolePanel.append("Tiempo de ejecución: " + (endTime - startTime) + " ms\n");
+                consolePanel.append("Autómatas definidos: " + Parser.automatas.size() + "\n");
+                consolePanel.append("Errores encontrados: " + Parser.errores.size() + "\n");
+                
+                statusLabel.setText(" Análisis completado - " + Parser.automatas.size() + " autómatas, " + 
+                                   Parser.errores.size() + " errores");
+                
+            } catch (Exception e) {
+                consolePanel.append("Error durante la ejecución: " + e.getMessage() + "\n");
+                statusLabel.setText(" Error en ejecución");
+                e.printStackTrace(consolePanel.getConsoleStream());
+            }
+        });
     }
     
     private void mostrarTokens() {
@@ -459,72 +461,10 @@ public class MainWindow extends JFrame {
             return;
         }
         
-        JDialog dialog = new JDialog(this, "Generar Gráficos", true);
-        dialog.setSize(400, 250);
-        dialog.setLocationRelativeTo(this);
-        
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
-        
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("Seleccione autómata:"), gbc);
-        
-        gbc.gridx = 1;
-        JComboBox<String> automataCombo = new JComboBox<>();
-        for (String nombre : Parser.automatas.keySet()) {
-            Object automata = Parser.automatas.get(nombre);
-            if (automata instanceof AFD) {
-                automataCombo.addItem(nombre + " (AFD)");
-            }
-        }
-        panel.add(automataCombo, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Formato:"), gbc);
-        
-        gbc.gridx = 1;
-        JComboBox<String> formatCombo = new JComboBox<>(new String[]{"png", "jpg", "svg"});
-        panel.add(formatCombo, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.HORIZONTAL;
-        JButton generateButton = new JButton("Generar Gráfico");
-        generateButton.addActionListener(e -> {
-            String selected = (String) automataCombo.getSelectedItem();
-            if (selected != null) {
-                String nombre = selected.split(" ")[0];
-                String formato = (String) formatCombo.getSelectedItem();
-                
-                JFileChooser fileChooser = new JFileChooser();
-                fileChooser.setSelectedFile(new File(nombre + "." + formato));
-                
-                if (fileChooser.showSaveDialog(dialog) == JFileChooser.APPROVE_OPTION) {
-                    File outputFile = fileChooser.getSelectedFile();
-                    Object automata = Parser.automatas.get(nombre);
-                    
-                    if (automata instanceof AFD) {
-                        boolean success = Graphviz.generarImagenAFD((AFD)automata, formato, outputFile.getAbsolutePath());
-                        
-                        if (success) {
-                            JOptionPane.showMessageDialog(dialog, 
-                                "Gráfico generado exitosamente: " + outputFile.getName(), 
-                                "Éxito", 
-                                JOptionPane.INFORMATION_MESSAGE);
-                        } else {
-                            JOptionPane.showMessageDialog(dialog, 
-                                "Error al generar gráfico. Verifique que Graphviz esté instalado.", 
-                                "Error", 
-                                JOptionPane.ERROR_MESSAGE);
-                        }
-                    }
-                }
-            }
-        });
-        panel.add(generateButton, gbc);
-        
-        dialog.add(panel);
-        dialog.setVisible(true);
+        JOptionPane.showMessageDialog(this, 
+            "Funcionalidad de gráficos en desarrollo.\nRequiere Graphviz instalado.", 
+            "Gráficos", 
+            JOptionPane.INFORMATION_MESSAGE);
     }
     
     private void mostrarAcercaDe() {
@@ -549,6 +489,7 @@ public class MainWindow extends JFrame {
     
     public static void main(String[] args) {
         try {
+            // CORREGIDO: Usar getSystemLookAndFeelClassName() en lugar de getSystemLookAndFeel()
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             e.printStackTrace();

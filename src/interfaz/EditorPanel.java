@@ -3,6 +3,7 @@ package interfaz;
 import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
+import javax.swing.undo.*;
 import java.awt.*;
 import java.awt.event.*;
 
@@ -11,6 +12,7 @@ public class EditorPanel extends JPanel {
     private JTextArea lineNumbers;
     private JLabel statusLabel;
     private JScrollPane scrollPane;
+    private UndoManager undoManager;
     
     public EditorPanel() {
         setLayout(new BorderLayout());
@@ -22,6 +24,10 @@ public class EditorPanel extends JPanel {
         textArea = new JTextArea();
         textArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
         textArea.setTabSize(4);
+        
+        // Configurar undo manager
+        undoManager = new UndoManager();
+        textArea.getDocument().addUndoableEditListener(undoManager);
         
         // Crear área de números de línea
         lineNumbers = new JTextArea("1");
@@ -57,17 +63,17 @@ public class EditorPanel extends JPanel {
         textArea.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
-                updateLineNumbers();
+                SwingUtilities.invokeLater(() -> updateLineNumbers());
             }
             
             @Override
             public void removeUpdate(DocumentEvent e) {
-                updateLineNumbers();
+                SwingUtilities.invokeLater(() -> updateLineNumbers());
             }
             
             @Override
             public void changedUpdate(DocumentEvent e) {
-                updateLineNumbers();
+                SwingUtilities.invokeLater(() -> updateLineNumbers());
             }
         });
         
@@ -75,15 +81,7 @@ public class EditorPanel extends JPanel {
         textArea.addCaretListener(new CaretListener() {
             @Override
             public void caretUpdate(CaretEvent e) {
-                updateStatusBar();
-            }
-        });
-        
-        // Sincronizar scroll de números de línea con el texto
-        textArea.getCaret().addChangeListener(new ChangeListener() {
-            @Override
-            public void stateChanged(ChangeEvent e) {
-                lineNumbers.setCaretPosition(textArea.getCaretPosition());
+                SwingUtilities.invokeLater(() -> updateStatusBar());
             }
         });
         
@@ -121,47 +119,66 @@ public class EditorPanel extends JPanel {
                 }
             }
         });
+        
+        // Undo/Redo con Ctrl+Z y Ctrl+Y
+        textArea.getInputMap().put(KeyStroke.getKeyStroke("ctrl Z"), "undo");
+        textArea.getActionMap().put("undo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                undo();
+            }
+        });
+        
+        textArea.getInputMap().put(KeyStroke.getKeyStroke("ctrl Y"), "redo");
+        textArea.getActionMap().put("redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                redo();
+            }
+        });
     }
     
     private void updateLineNumbers() {
-        SwingUtilities.invokeLater(() -> {
-            try {
-                int lineCount = textArea.getLineCount();
-                StringBuilder numbers = new StringBuilder();
-                
-                for (int i = 1; i <= lineCount; i++) {
-                    numbers.append(i).append("\n");
+        try {
+            int lineCount = textArea.getLineCount();
+            StringBuilder numbers = new StringBuilder();
+            
+            for (int i = 1; i <= lineCount; i++) {
+                numbers.append(i);
+                if (i < lineCount) {
+                    numbers.append("\n");
                 }
-                
-                lineNumbers.setText(numbers.toString());
-                lineNumbers.setCaretPosition(textArea.getCaretPosition());
-                
-                // Ajustar el ancho de los números de línea
-                int maxWidth = Math.max(30, String.valueOf(lineCount).length() * 10 + 10);
-                lineNumbers.setPreferredSize(new Dimension(maxWidth, lineNumbers.getPreferredSize().height));
-                
-            } catch (Exception ex) {
-                ex.printStackTrace();
             }
-        });
+            
+            lineNumbers.setText(numbers.toString());
+            
+            // Ajustar el ancho de los números de línea
+            int maxWidth = Math.max(35, String.valueOf(lineCount).length() * 12 + 10);
+            lineNumbers.setPreferredSize(new Dimension(maxWidth, lineNumbers.getPreferredSize().height));
+            
+            // Revalidar para aplicar cambios
+            lineNumbers.revalidate();
+            
+        } catch (Exception ex) {
+            // En caso de error, mantener números básicos
+            lineNumbers.setText("1");
+        }
     }
     
     private void updateStatusBar() {
-        SwingUtilities.invokeLater(() -> {
-            try {
-                int caretPos = textArea.getCaretPosition();
-                int lineNumber = textArea.getLineOfOffset(caretPos) + 1;
-                int columnNumber = caretPos - textArea.getLineStartOffset(lineNumber - 1) + 1;
-                
-                String text = String.format(" Línea: %d, Columna: %d | Caracteres: %d | Líneas: %d ",
-                        lineNumber, columnNumber, textArea.getText().length(), textArea.getLineCount());
-                
-                statusLabel.setText(text);
-                
-            } catch (Exception ex) {
-                statusLabel.setText(" Línea: 1, Columna: 1 ");
-            }
-        });
+        try {
+            int caretPos = textArea.getCaretPosition();
+            int lineNumber = textArea.getLineOfOffset(caretPos) + 1;
+            int columnNumber = caretPos - textArea.getLineStartOffset(lineNumber - 1) + 1;
+            
+            String text = String.format(" Línea: %d, Columna: %d | Caracteres: %d | Líneas: %d ",
+                    lineNumber, columnNumber, textArea.getText().length(), textArea.getLineCount());
+            
+            statusLabel.setText(text);
+            
+        } catch (Exception ex) {
+            statusLabel.setText(" Línea: 1, Columna: 1 ");
+        }
     }
     
     // Métodos públicos para interactuar con el editor
@@ -172,20 +189,27 @@ public class EditorPanel extends JPanel {
     
     public void setText(String text) {
         textArea.setText(text);
-        updateLineNumbers();
-        updateStatusBar();
+        // Programar actualización para después de que se complete el setText
+        SwingUtilities.invokeLater(() -> {
+            updateLineNumbers();
+            updateStatusBar();
+        });
     }
     
     public void clear() {
         textArea.setText("");
-        updateLineNumbers();
-        updateStatusBar();
+        SwingUtilities.invokeLater(() -> {
+            updateLineNumbers();
+            updateStatusBar();
+        });
     }
     
     public void append(String text) {
         textArea.append(text);
-        updateLineNumbers();
-        updateStatusBar();
+        SwingUtilities.invokeLater(() -> {
+            updateLineNumbers();
+            updateStatusBar();
+        });
     }
     
     public int getCaretLine() {
@@ -299,51 +323,32 @@ public class EditorPanel extends JPanel {
         }
     }
     
-    // Métodos para undo/redo (si se implementa un Document con undo)
+    // Métodos para undo/redo corregidos
     public void undo() {
         try {
-            if (textArea.getDocument() instanceof AbstractDocument) {
-                ((AbstractDocument) textArea.getDocument()).undo();
+            if (undoManager.canUndo()) {
+                undoManager.undo();
             }
-        } catch (Exception e) {
-            // No soporta undo
+        } catch (CannotUndoException e) {
+            // No se puede deshacer
         }
     }
     
     public void redo() {
         try {
-            if (textArea.getDocument() instanceof AbstractDocument) {
-                ((AbstractDocument) textArea.getDocument()).redo();
+            if (undoManager.canRedo()) {
+                undoManager.redo();
             }
-        } catch (Exception e) {
-            // No soporta redo
+        } catch (CannotRedoException e) {
+            // No se puede rehacer
         }
     }
     
-    // Método para configurar syntax highlighting básico
-    public void configureSyntaxHighlighting() {
-        // Esto es un esqueleto para syntax highlighting
-        // Se podría expandir con un StyledDocument
-        textArea.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                applyBasicHighlighting();
-            }
-            
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                applyBasicHighlighting();
-            }
-            
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                applyBasicHighlighting();
-            }
-            
-            private void applyBasicHighlighting() {
-                // Implementación básica de syntax highlighting
-                // Se podría mejorar usando StyledDocument
-            }
-        });
+    public boolean canUndo() {
+        return undoManager.canUndo();
+    }
+    
+    public boolean canRedo() {
+        return undoManager.canRedo();
     }
 }

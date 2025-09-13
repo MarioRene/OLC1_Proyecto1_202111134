@@ -28,7 +28,7 @@ Comment = "//"[^\r\n]* | "/*"([^*]|[\r\n]|("*"+([^*/]|[\r\n])))*"*"+"/"
 
 Identifier = [a-zA-Z_][a-zA-Z0-9_]*
 String = \"([^\"\\]|\\.)*\"
-Character = \'([^\'\\]|\\.)\'
+Character = \'([^\'\\]|\\.)*\'
 
 %%
 
@@ -64,9 +64,14 @@ Character = \'([^\'\\]|\\.)\'
     // Literales
     {Identifier}           { return symbol(sym.IDENTIFICADOR, yytext()); }
     {String}               { 
-        String content = yytext().substring(1, yytext().length()-1);
-        content = content.replace("\\\"", "\"").replace("\\\\", "\\")
-                        .replace("\\n", "\n").replace("\\t", "\t")
+        String content = yytext();
+        // Remover comillas del inicio y final
+        content = content.substring(1, content.length()-1);
+        // Procesar escape sequences
+        content = content.replace("\\\"", "\"")
+                        .replace("\\\\", "\\")
+                        .replace("\\n", "\n")
+                        .replace("\\t", "\t")
                         .replace("\\r", "\r");
         return symbol(sym.CADENA, content); 
     }
@@ -74,8 +79,10 @@ Character = \'([^\'\\]|\\.)\'
         String charText = yytext();
         char c;
         if (charText.length() == 3) {
+            // Caracter simple: 'a'
             c = charText.charAt(1);
-        } else if (charText.charAt(1) == '\\') {
+        } else if (charText.length() == 4 && charText.charAt(1) == '\\') {
+            // Caracter con escape: '\n'
             char escaped = charText.charAt(2);
             switch (escaped) {
                 case 'n': c = '\n'; break;
@@ -83,19 +90,22 @@ Character = \'([^\'\\]|\\.)\'
                 case 'r': c = '\r'; break;
                 case '\\': c = '\\'; break;
                 case '\'': c = '\''; break;
+                case '0': c = '\0'; break;
                 default: c = escaped; break;
             }
         } else {
+            // Fallback para casos especiales
             c = charText.charAt(1);
         }
         return symbol(sym.CARACTER, c); 
     }
     
     // Espacios y comentarios
-    {WhiteSpace}           { /* Ignorar */ }
-    {Comment}              { /* Ignorar */ }
+    {WhiteSpace}           { /* Ignorar espacios en blanco */ }
+    {Comment}              { /* Ignorar comentarios */ }
 }
 
+// Manejo de errores léxicos
 [^] { 
     System.err.println("Error léxico: Carácter no válido '" + yytext() + 
                       "' en línea " + (yyline+1) + ", columna " + (yycolumn+1));

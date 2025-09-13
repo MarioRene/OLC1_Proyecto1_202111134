@@ -15,11 +15,13 @@ parser code {:
     }
     
     public void syntax_error(Symbol s) {
-        mostrarError("Token inesperado", s.left, s.right);
+        String tokenName = (s.value != null) ? s.value.toString() : "desconocido";
+        mostrarError("Token inesperado '" + tokenName + "'", s.left, s.right);
     }
     
-    public void unrecovered_syntax_error(Symbol s) {
+    public void unrecovered_syntax_error(Symbol s) throws Exception {
         mostrarError("Error de sintaxis irrecuperable", s.left, s.right);
+        throw new Exception("Error de sintaxis irrecuperable");
     }
 :};
 
@@ -34,30 +36,42 @@ terminal
     FLECHA, OR, PUNTO_COMA, DOS_PUNTOS, COMA, DOLAR;
 
 // No terminales
-non terminal Object programa, elementos, elemento, llamada_funcion;
+non terminal programa;
+non terminal elementos;
+non terminal elemento;
 non terminal AFD definicion_afd;
 non terminal AP definicion_ap;
+non terminal llamada_funcion;
 non terminal List<String> lista_estados;
 non terminal List<Character> lista_simbolos;
-non terminal List<Transicion> transiciones_afd, transiciones_ap;
-non terminal Transicion transicion_afd_grupo, transicion_ap_grupo;
-non terminal Transicion transicion_afd_simple, transicion_ap_simple;
+non terminal List<Transicion> transiciones_afd;
+non terminal List<Transicion> transiciones_ap;
+non terminal List<Transicion> grupo_trans_afd;
+non terminal List<Transicion> grupo_trans_ap;
+non terminal Transicion trans_afd_simple;
+non terminal Transicion trans_ap_simple;
 
-// Precedencias
+// Precedencias para resolver conflictos
 precedence left OR;
+precedence left FLECHA;
+precedence left COMA;
+
+// Símbolos de inicio
+start with programa;
 
 // Reglas gramaticales
-programa ::= elementos;
+programa ::= elementos
+           | /* programa vacío */
+           ;
 
-elementos ::= elementos elemento 
-            | elemento 
-            | /* vacio */
+elementos ::= elementos elemento
+            | elemento
             ;
 
-elemento ::= definicion_afd 
+elemento ::= definicion_afd
            | definicion_ap
-           | llamada_funcion 
-           | error PUNTO_COMA {: mostrarError("Error de sintaxis", -1, -1); :}
+           | llamada_funcion
+           | error PUNTO_COMA {: parser.mostrarError("Error de sintaxis", -1, -1); :}
            ;
 
 // Definición de AFD
@@ -71,11 +85,11 @@ definicion_afd ::= AFD_INI NOMBRE IGUAL CADENA:nombre LLAVE_DER
                  {: 
                    try {
                        AFD nuevoAFD = new AFD(nombre, estados, alfabeto, inicial, aceptacion, trans);
-                       automatas.put(nombre, nuevoAFD);
+                       parser.automatas.put(nombre, nuevoAFD);
                        RESULT = nuevoAFD;
                        System.out.println("AFD '" + nombre + "' definido correctamente");
                    } catch (Exception e) {
-                       mostrarError(e.getMessage(), -1, -1);
+                       parser.mostrarError(e.getMessage(), -1, -1);
                        RESULT = null;
                    }
                  :} ;
@@ -92,74 +106,104 @@ definicion_ap ::= AP_INI NOMBRE IGUAL CADENA:nombre LLAVE_DER
                 {: 
                   try {
                       AP nuevoAP = new AP(nombre, estados, alfabeto, pila, inicial, aceptacion, trans);
-                      automatas.put(nombre, nuevoAP);
+                      parser.automatas.put(nombre, nuevoAP);
                       RESULT = nuevoAP;
                       System.out.println("AP '" + nombre + "' definido correctamente");
                   } catch (Exception e) {
-                      mostrarError(e.getMessage(), -1, -1);
+                      parser.mostrarError(e.getMessage(), -1, -1);
                       RESULT = null;
                   }
                 :} ;
 
-// Listas
-lista_estados ::= IDENTIFICADOR:e {: 
-                    RESULT = new ArrayList<String>(); 
-                    ((List<String>)RESULT).add(e); 
-                  :}
-                | lista_estados COMA IDENTIFICADOR:e {: 
-                    ((List<String>)RESULT).add(e); 
-                  :} ;
+// Listas básicas
+lista_estados ::= IDENTIFICADOR:e 
+                {: 
+                    List<String> lista = new ArrayList<>(); 
+                    lista.add(e); 
+                    RESULT = lista;
+                :}
+                | lista_estados:lista COMA IDENTIFICADOR:e 
+                {: 
+                    lista.add(e); 
+                    RESULT = lista;
+                :} ;
 
-lista_simbolos ::= CARACTER:c {: 
-                     RESULT = new ArrayList<Character>(); 
-                     ((List<Character>)RESULT).add(c); 
-                   :}
-                 | lista_simbolos COMA CARACTER:c {: 
-                     ((List<Character>)RESULT).add(c); 
-                   :} ;
+lista_simbolos ::= CARACTER:c 
+                 {: 
+                     List<Character> lista = new ArrayList<>(); 
+                     lista.add(c); 
+                     RESULT = lista;
+                 :}
+                 | lista_simbolos:lista COMA CARACTER:c 
+                 {: 
+                     lista.add(c); 
+                     RESULT = lista;
+                 :} ;
 
 // Transiciones AFD
-transiciones_afd ::= transicion_afd_grupo:t PUNTO_COMA {: 
-                       RESULT = new ArrayList<Transicion>(); 
-                       ((List<Transicion>)RESULT).add(t); 
-                     :}
-                   | transiciones_afd transicion_afd_grupo:t PUNTO_COMA {: 
-                       ((List<Transicion>)RESULT).add(t); 
-                     :} ;
+transiciones_afd ::= grupo_trans_afd:grupo PUNTO_COMA 
+                   {: 
+                       RESULT = grupo; 
+                   :}
+                   | transiciones_afd:lista grupo_trans_afd:grupo PUNTO_COMA 
+                   {: 
+                       lista.addAll(grupo);
+                       RESULT = lista; 
+                   :} ;
 
-transicion_afd_grupo ::= transicion_afd_simple:t {: RESULT = t; :}
-                       | transicion_afd_grupo OR transicion_afd_simple:t {: RESULT = t; :} ;
+grupo_trans_afd ::= trans_afd_simple:t
+                  {: 
+                      List<Transicion> lista = new ArrayList<>();
+                      lista.add(t);
+                      RESULT = lista; 
+                  :}
+                  | grupo_trans_afd:lista OR trans_afd_simple:t
+                  {: 
+                      lista.add(t);
+                      RESULT = lista; 
+                  :} ;
 
-transicion_afd_simple ::= IDENTIFICADOR:origen FLECHA CARACTER:simbolo COMA IDENTIFICADOR:destino 
-                        {: 
-                            RESULT = new TransicionAFD(origen, simbolo, destino); 
-                        :} ;
+trans_afd_simple ::= IDENTIFICADOR:origen FLECHA CARACTER:simbolo COMA IDENTIFICADOR:destino
+                   {: 
+                       RESULT = new TransicionAFD(origen, simbolo, destino); 
+                   :} ;
 
 // Transiciones AP  
-transiciones_ap ::= transicion_ap_grupo:t PUNTO_COMA {: 
-                      RESULT = new ArrayList<Transicion>(); 
-                      ((List<Transicion>)RESULT).add(t); 
-                    :}
-                  | transiciones_ap transicion_ap_grupo:t PUNTO_COMA {: 
-                      ((List<Transicion>)RESULT).add(t); 
-                    :} ;
+transiciones_ap ::= grupo_trans_ap:grupo PUNTO_COMA 
+                  {: 
+                      RESULT = grupo; 
+                  :}
+                  | transiciones_ap:lista grupo_trans_ap:grupo PUNTO_COMA 
+                  {: 
+                      lista.addAll(grupo);
+                      RESULT = lista; 
+                  :} ;
 
-transicion_ap_grupo ::= transicion_ap_simple:t {: RESULT = t; :}
-                      | transicion_ap_grupo OR transicion_ap_simple:t {: RESULT = t; :} ;
+grupo_trans_ap ::= trans_ap_simple:t
+                 {: 
+                     List<Transicion> lista = new ArrayList<>();
+                     lista.add(t);
+                     RESULT = lista; 
+                 :}
+                 | grupo_trans_ap:lista OR trans_ap_simple:t
+                 {: 
+                     lista.add(t);
+                     RESULT = lista; 
+                 :} ;
 
-transicion_ap_simple ::= IDENTIFICADOR:origen PAREN_IZQ CARACTER:entrada PAREN_DER 
-                         FLECHA PAREN_IZQ CARACTER:extrae PAREN_DER COMA 
-                         IDENTIFICADOR:destino DOS_PUNTOS PAREN_IZQ CARACTER:inserta PAREN_DER
-                       {: 
-                           RESULT = new TransicionAP(origen, entrada, extrae, destino, inserta); 
-                       :} ;
+trans_ap_simple ::= IDENTIFICADOR:origen PAREN_IZQ CARACTER:entrada PAREN_DER 
+                    FLECHA PAREN_IZQ CARACTER:extrae PAREN_DER COMA 
+                    IDENTIFICADOR:destino DOS_PUNTOS PAREN_IZQ CARACTER:inserta PAREN_DER
+                  {: 
+                      RESULT = new TransicionAP(origen, entrada, extrae, destino, inserta); 
+                  :} ;
 
 // Llamadas a funciones
 llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA 
                   {: 
                     System.out.println("=== LISTA DE AUTÓMATAS ===");
-                    for (String nombre : automatas.keySet()) {
-                        Object automata = automatas.get(nombre);
+                    for (String nombre : parser.automatas.keySet()) {
+                        Object automata = parser.automatas.get(nombre);
                         String tipo = (automata instanceof AFD) ? "Autómata Finito Determinista" : "Autómata de Pila";
                         System.out.println(nombre + " - " + tipo);
                     }
@@ -167,7 +211,7 @@ llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA
                   :}
                   | DESC PAREN_IZQ IDENTIFICADOR:nombre PAREN_DER PUNTO_COMA 
                   {: 
-                    Object automata = automatas.get(nombre);
+                    Object automata = parser.automatas.get(nombre);
                     if (automata != null) {
                         System.out.println("=== DESCRIPCIÓN DE " + nombre + " ===");
                         if (automata instanceof AFD) {
@@ -182,7 +226,7 @@ llamada_funcion ::= VER_AUTOMATAS PAREN_IZQ PAREN_DER PUNTO_COMA
                   :}
                   | IDENTIFICADOR:nombre PAREN_IZQ CADENA:cadena PAREN_DER PUNTO_COMA 
                   {: 
-                    Object automata = automatas.get(nombre);
+                    Object automata = parser.automatas.get(nombre);
                     if (automata != null) {
                         boolean valida;
                         if (automata instanceof AFD) {
