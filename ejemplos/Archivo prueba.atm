@@ -9,7 +9,7 @@ Transiciones:
     F -> 0, F | 1, S ;
 </AFD>
 
-// Automata Finito Determinista: pares de 1’s
+// Automata Finito Determinista: pares de 1's
 <AFD Nombre="AFD_Par1">
     N = {S, A}; 
     T = {0, 1}; 
@@ -20,7 +20,7 @@ Transiciones:
     A -> 0, A | 1, S ;
 </AFD>
 
-// Autómata de Pila: balance de un par de "ab"
+// Automata de Pila: balance de un par de "ab"
 <AP Nombre="AP_ab">
     N = {I, P, F}; 
     T = {a, b}; 
@@ -34,7 +34,7 @@ Transiciones:
     P ($) -> (#), F : ($) ;
 </AP>
 
-// Autómata de Pila: balance general de "a^n b^n"
+// Automata de Pila: balance general de "a^n b^n"
 <AP Nombre="AP_anbn">
     N = {I, A, F}; 
     T = {a, b}; 
@@ -48,7 +48,7 @@ Transiciones:
     A ($) -> (#), F : ($) ;
 </AP>
 
-// Pruebas de ejecución
+// Pruebas de ejecucion
 verAutomatas();
 desc(AFD_Simple);
 desc(AP_ab);
