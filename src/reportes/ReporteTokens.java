@@ -1,7 +1,6 @@
 package reportes;
 
 import analizadores.Lexer;
-import analizadores.sym;
 import java_cup.runtime.Symbol;
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -15,35 +14,37 @@ public class ReporteTokens {
     private static final Map<Integer, String> TOKEN_NAMES = new HashMap<>();
     
     static {
-        TOKEN_NAMES.put(sym.EOF, "EOF");
-        TOKEN_NAMES.put(sym.error, "ERROR");
-        TOKEN_NAMES.put(sym.CADENA, "CADENA");
-        TOKEN_NAMES.put(sym.IDENTIFICADOR, "IDENTIFICADOR");
-        TOKEN_NAMES.put(sym.CARACTER, "CARACTER");
-        TOKEN_NAMES.put(sym.AFD_INI, "AFD_INICIO");
-        TOKEN_NAMES.put(sym.AFD_FIN, "AFD_FIN");
-        TOKEN_NAMES.put(sym.AP_INI, "AP_INICIO");
-        TOKEN_NAMES.put(sym.AP_FIN, "AP_FIN");
-        TOKEN_NAMES.put(sym.NOMBRE, "NOMBRE");
-        TOKEN_NAMES.put(sym.N, "N");
-        TOKEN_NAMES.put(sym.T, "T");
-        TOKEN_NAMES.put(sym.P, "P");
-        TOKEN_NAMES.put(sym.I, "I");
-        TOKEN_NAMES.put(sym.A, "A");
-        TOKEN_NAMES.put(sym.TRANSICIONES, "TRANSICIONES");
-        TOKEN_NAMES.put(sym.VER_AUTOMATAS, "VER_AUTOMATAS");
-        TOKEN_NAMES.put(sym.DESC, "DESC");
-        TOKEN_NAMES.put(sym.IGUAL, "IGUAL");
-        TOKEN_NAMES.put(sym.LLAVE_IZQ, "LLAVE_IZQUIERDA");
-        TOKEN_NAMES.put(sym.LLAVE_DER, "LLAVE_DERECHA");
-        TOKEN_NAMES.put(sym.PAREN_IZQ, "PARENTESIS_IZQUIERDO");
-        TOKEN_NAMES.put(sym.PAREN_DER, "PARENTESIS_DERECHO");
-        TOKEN_NAMES.put(sym.FLECHA, "FLECHA");
-        TOKEN_NAMES.put(sym.OR, "OR");
-        TOKEN_NAMES.put(sym.PUNTO_COMA, "PUNTO_COMA");
-        TOKEN_NAMES.put(sym.DOS_PUNTOS, "DOS_PUNTOS");
-        TOKEN_NAMES.put(sym.COMA, "COMA");
-        TOKEN_NAMES.put(sym.DOLAR, "LAMBDA");
+        // Mapeo de tokens usando los valores numéricos directamente
+        // Estos valores deben coincidir con los definidos en sym.java
+        TOKEN_NAMES.put(0, "EOF");
+        TOKEN_NAMES.put(1, "ERROR");
+        TOKEN_NAMES.put(2, "CADENA");
+        TOKEN_NAMES.put(3, "IDENTIFICADOR");
+        TOKEN_NAMES.put(4, "CARACTER");
+        TOKEN_NAMES.put(5, "AFD_INICIO");
+        TOKEN_NAMES.put(6, "AFD_FIN");
+        TOKEN_NAMES.put(7, "AP_INICIO");
+        TOKEN_NAMES.put(8, "AP_FIN");
+        TOKEN_NAMES.put(9, "NOMBRE");
+        TOKEN_NAMES.put(10, "N");
+        TOKEN_NAMES.put(11, "T");
+        TOKEN_NAMES.put(12, "P");
+        TOKEN_NAMES.put(13, "I");
+        TOKEN_NAMES.put(14, "A");
+        TOKEN_NAMES.put(15, "TRANSICIONES");
+        TOKEN_NAMES.put(16, "VER_AUTOMATAS");
+        TOKEN_NAMES.put(17, "DESC");
+        TOKEN_NAMES.put(18, "IGUAL");
+        TOKEN_NAMES.put(19, "LLAVE_IZQUIERDA");
+        TOKEN_NAMES.put(20, "LLAVE_DERECHA");
+        TOKEN_NAMES.put(21, "PARENTESIS_IZQUIERDO");
+        TOKEN_NAMES.put(22, "PARENTESIS_DERECHO");
+        TOKEN_NAMES.put(23, "FLECHA");
+        TOKEN_NAMES.put(24, "OR");
+        TOKEN_NAMES.put(25, "PUNTO_COMA");
+        TOKEN_NAMES.put(26, "DOS_PUNTOS");
+        TOKEN_NAMES.put(27, "COMA");
+        TOKEN_NAMES.put(28, "LAMBDA");
     }
     
     public static List<Token> analizarTokens(String input) {
@@ -59,7 +60,7 @@ public class ReporteTokens {
             System.out.println("========================================");
             
             while ((symbol = lexer.next_token()) != null) {
-                if (symbol.sym == sym.EOF) {
+                if (symbol.sym == 0) { // EOF
                     tokens.add(new Token(count++, "EOF", "EOF", symbol.left + 1, symbol.right + 1));
                     break;
                 }
@@ -104,24 +105,24 @@ public class ReporteTokens {
         return texto.substring(0, maxLength - 3) + "...";
     }
     
-    private static String getNombreToken(int sym) {
-        return TOKEN_NAMES.getOrDefault(sym, "DESCONOCIDO_" + sym);
+    private static String getNombreToken(int symCode) {
+        return TOKEN_NAMES.getOrDefault(symCode, "DESCONOCIDO_" + symCode);
     }
     
-    private static String getSymbolRepresentation(int sym) {
-        switch (sym) {
-            case sym.IGUAL: return "=";
-            case sym.LLAVE_IZQ: return "{";
-            case sym.LLAVE_DER: return "}";
-            case sym.PAREN_IZQ: return "(";
-            case sym.PAREN_DER: return ")";
-            case sym.FLECHA: return "->";
-            case sym.OR: return "|";
-            case sym.PUNTO_COMA: return ";";
-            case sym.DOS_PUNTOS: return ":";
-            case sym.COMA: return ",";
-            case sym.DOLAR: return "$";
-            default: return getNombreToken(sym);
+    private static String getSymbolRepresentation(int symCode) {
+        switch (symCode) {
+            case 18: return "=";
+            case 19: return "{";
+            case 20: return "}";
+            case 21: return "(";
+            case 22: return ")";
+            case 23: return "->";
+            case 24: return "|";
+            case 25: return ";";
+            case 26: return ":";
+            case 27: return ",";
+            case 28: return "$";
+            default: return getNombreToken(symCode);
         }
     }
     

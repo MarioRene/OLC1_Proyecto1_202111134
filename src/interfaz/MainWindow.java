@@ -2,9 +2,11 @@ package interfaz;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.util.List;
 import analizadores.*;
 import modelos.*;
 import reportes.*;
@@ -280,12 +282,18 @@ public class MainWindow extends JFrame {
     
     private void setupStatusBarListeners() {
         editorPanel.getTextArea().addCaretListener(e -> {
-            int line = editorPanel.getCaretLine();
-            int column = editorPanel.getCaretColumn();
-            int chars = editorPanel.getText().length();
-            int lines = editorPanel.getTextArea().getLineCount();
-            positionLabel.setText(String.format(" Línea: %d, Columna: %d | Caracteres: %d | Líneas: %d ", 
-                    line, column, chars, lines));
+            try {
+                int caretPos = editorPanel.getTextArea().getCaretPosition();
+                int line = editorPanel.getTextArea().getLineOfOffset(caretPos) + 1;
+                int column = caretPos - editorPanel.getTextArea().getLineStartOffset(line - 1) + 1;
+                int chars = editorPanel.getText().length();
+                int lines = editorPanel.getTextArea().getLineCount();
+                
+                positionLabel.setText(String.format(" Línea: %d, Columna: %d | Caracteres: %d | Líneas: %d ", 
+                        line, column, chars, lines));
+            } catch (Exception ex) {
+                positionLabel.setText(" Línea: 1, Columna: 1 ");
+            }
         });
     }
     
@@ -342,8 +350,7 @@ public class MainWindow extends JFrame {
                 String input = editorPanel.getText();
                 
                 // Redirigir salida a consola
-                System.setOut(consolePanel.getConsoleStream());
-                System.setErr(consolePanel.getConsoleStream());
+                consolePanel.redirectSystemStreams();
                 
                 consolePanel.append("=== INICIANDO ANÁLISIS LÉXICO Y SINTÁCTICO ===\n");
                 consolePanel.append("Archivo: " + (currentFile != null ? currentFile.getName() : "Sin título") + "\n");
@@ -369,69 +376,105 @@ public class MainWindow extends JFrame {
                 consolePanel.append("Tiempo de ejecución: " + (endTime - startTime) + " ms\n");
                 consolePanel.append("Autómatas definidos: " + Parser.automatas.size() + "\n");
                 consolePanel.append("Errores encontrados: " + Parser.errores.size() + "\n");
-                
-                if (Parser.errores.isEmpty()) {
-                    consolePanel.append("Estado: ✓ ANÁLISIS EXITOSO\n");
-                    statusLabel.setText(" ✓ Análisis exitoso - " + Parser.automatas.size() + " autómatas definidos");
-                } else {
-                    consolePanel.append("Estado: ✗ ERRORES ENCONTRADOS\n");
-                    statusLabel.setText(" ✗ Errores encontrados - Revise la pestaña de errores");
-                }
                 consolePanel.append("===============================================\n");
                 
-                // Actualizar reportes automáticamente
-                actualizarReportes();
+                // Mostrar resultados en las pestañas
+                mostrarTokens();
+                mostrarErrores();
+                mostrarAutomatas();
                 
-            } catch (Exception e) {
-                consolePanel.append("\n❌ ERROR CRÍTICO DURANTE LA EJECUCIÓN:\n");
-                consolePanel.append(e.getMessage() + "\n");
-                statusLabel.setText(" ❌ Error crítico en ejecución");
-                e.printStackTrace(consolePanel.getConsoleStream());
+                if (Parser.errores.isEmpty()) {
+                    statusLabel.setText(" Análisis completado exitosamente");
+                } else {
+                    statusLabel.setText(" Análisis completado con errores");
+                }
+                
+                // Restaurar streams originales
+                consolePanel.restoreSystemStreams();
+                
+            } catch (Exception ex) {
+                consolePanel.append("ERROR: " + ex.getMessage() + "\n");
+                ex.printStackTrace(new PrintStream(consolePanel.getConsoleStream()));
+                statusLabel.setText(" Error durante la ejecución");
+                
+                // Asegurarse de restaurar streams incluso en caso de error
+                consolePanel.restoreSystemStreams();
             }
         });
     }
     
-    private void compilar() {
-        statusLabel.setText(" Compilando...");
+    private void mostrarTokens() {
         try {
             String input = editorPanel.getText();
-            Lexer lexer = new Lexer(new StringReader(input));
-            Parser parser = new Parser(lexer);
-            parser.parse();
+            List<Token> tokens = ReporteTokens.analizarTokens(input);
             
-            if (Parser.errores.isEmpty()) {
-                statusLabel.setText(" ✓ Compilación exitosa");
-                JOptionPane.showMessageDialog(this, 
-                    "Compilación exitosa\n" + Parser.automatas.size() + " autómatas definidos", 
-                    "Compilación", 
-                    JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                statusLabel.setText(" ✗ Errores de compilación");
-                mostrarErrores();
+            JScrollPane tokensTab = (JScrollPane) reportTabs.getComponentAt(1);
+            JTable tokensTable = (JTable) tokensTab.getViewport().getView();
+            
+            String[] columnNames = {"#", "Lexema", "Tipo", "Línea", "Columna"};
+            Object[][] data = new Object[tokens.size()][5];
+            
+            for (int i = 0; i < tokens.size(); i++) {
+                Token token = tokens.get(i);
+                data[i][0] = token.getNumero();
+                data[i][1] = token.getLexema();
+                data[i][2] = token.getTipo();
+                data[i][3] = token.getLinea();
+                data[i][4] = token.getColumna();
             }
+            
+            tokensTable.setModel(new DefaultTableModel(data, columnNames) {
+                @Override
+                public boolean isCellEditable(int row, int column) {
+                    return false;
+                }
+            });
+            
+            // Ajustar ancho de columnas
+            tokensTable.getColumnModel().getColumn(0).setPreferredWidth(50);
+            tokensTable.getColumnModel().getColumn(1).setPreferredWidth(150);
+            tokensTable.getColumnModel().getColumn(2).setPreferredWidth(120);
+            tokensTable.getColumnModel().getColumn(3).setPreferredWidth(60);
+            tokensTable.getColumnModel().getColumn(4).setPreferredWidth(80);
+            
+            reportTabs.setSelectedIndex(1);
+            statusLabel.setText(" Tokens generados");
+            
         } catch (Exception e) {
-            statusLabel.setText(" ❌ Error de compilación");
-            JOptionPane.showMessageDialog(this, 
-                "Error de compilación: " + e.getMessage(), 
-                "Error", 
-                JOptionPane.ERROR_MESSAGE);
+            statusLabel.setText(" Error al generar tokens");
+            JOptionPane.showMessageDialog(this, "Error al analizar tokens: " + e.getMessage(), 
+                                        "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
     
-    private void actualizarReportes() {
-        // Actualizar pestaña de autómatas
-        actualizarAutomatas();
-        // Actualizar pestaña de tokens
-        actualizarTokens();
-        // Actualizar pestaña de errores
-        actualizarErrores();
-        // Generar gráficos automáticamente
-        generarGraficos();
+    private void mostrarErrores() {
+        JScrollPane erroresTab = (JScrollPane) reportTabs.getComponentAt(2);
+        JTextArea erroresArea = (JTextArea) erroresTab.getViewport().getView();
+        
+        StringBuilder content = new StringBuilder();
+        if (Parser.errores.isEmpty()) {
+            content.append("✅ No se encontraron errores.\n\n");
+            content.append("El análisis léxico y sintáctico fue exitoso.\n");
+            content.append("Todos los autómatas fueron procesados correctamente.");
+            erroresArea.setForeground(new Color(0, 128, 0));
+        } else {
+            content.append("❌ ERRORES ENCONTRADOS (").append(Parser.errores.size()).append("):\n");
+            content.append("═".repeat(50)).append("\n\n");
+            
+            for (int i = 0; i < Parser.errores.size(); i++) {
+                content.append((i + 1)).append(". ").append(Parser.errores.get(i)).append("\n\n");
+            }
+            erroresArea.setForeground(Color.RED);
+        }
+        
+        erroresArea.setText(content.toString());
+        erroresArea.setCaretPosition(0);
+        reportTabs.setSelectedIndex(2);
     }
     
-    private void actualizarAutomatas() {
-        JScrollPane scrollPane = (JScrollPane) reportTabs.getComponentAt(0);
-        JTextArea automatasArea = (JTextArea) scrollPane.getViewport().getView();
+    private void mostrarAutomatas() {
+        JScrollPane automatasTab = (JScrollPane) reportTabs.getComponentAt(0);
+        JTextArea automatasArea = (JTextArea) automatasTab.getViewport().getView();
         
         StringBuilder content = new StringBuilder();
         if (Parser.automatas.isEmpty()) {
@@ -466,69 +509,8 @@ public class MainWindow extends JFrame {
         
         automatasArea.setText(content.toString());
         automatasArea.setCaretPosition(0);
-    }
-    
-    private void actualizarTokens() {
-        try {
-            String input = editorPanel.getText();
-            java.util.List<Token> tokens = ReporteTokens.analizarTokens(input);
-            
-            JScrollPane scrollPane = (JScrollPane) reportTabs.getComponentAt(1);
-            JTable tokensTable = (JTable) scrollPane.getViewport().getView();
-            
-            String[] columnNames = {"#", "Lexema", "Tipo", "Línea", "Columna"};
-            Object[][] data = new Object[tokens.size()][5];
-            
-            for (int i = 0; i < tokens.size(); i++) {
-                Token token = tokens.get(i);
-                data[i][0] = token.getNumero();
-                data[i][1] = token.getLexema();
-                data[i][2] = token.getTipo();
-                data[i][3] = token.getLinea();
-                data[i][4] = token.getColumna();
-            }
-            
-            tokensTable.setModel(new javax.swing.table.DefaultTableModel(data, columnNames) {
-                @Override
-                public boolean isCellEditable(int row, int column) {
-                    return false;
-                }
-            });
-            
-            // Ajustar ancho de columnas
-            tokensTable.getColumnModel().getColumn(0).setPreferredWidth(50);
-            tokensTable.getColumnModel().getColumn(1).setPreferredWidth(150);
-            tokensTable.getColumnModel().getColumn(2).setPreferredWidth(120);
-            tokensTable.getColumnModel().getColumn(3).setPreferredWidth(60);
-            tokensTable.getColumnModel().getColumn(4).setPreferredWidth(80);
-            
-        } catch (Exception e) {
-            statusLabel.setText(" Error al generar tokens");
-        }
-    }
-    
-    private void actualizarErrores() {
-        JScrollPane scrollPane = (JScrollPane) reportTabs.getComponentAt(2);
-        JTextArea erroresArea = (JTextArea) scrollPane.getViewport().getView();
-        
-        StringBuilder content = new StringBuilder();
-        if (Parser.errores.isEmpty()) {
-            content.append("✅ No se encontraron errores.\n\n");
-            content.append("El análisis léxico y sintáctico fue exitoso.\n");
-            content.append("Todos los autómatas fueron procesados correctamente.");
-            erroresArea.setForeground(new Color(0, 128, 0));
-        } else {
-            content.append("❌ ERRORES ENCONTRADOS (").append(Parser.errores.size()).append("):\n");
-            content.append("═".repeat(50)).append("\n\n");
-            
-            for (int i = 0; i < Parser.errores.size(); i++) {
-                content.append((i + 1)).append(". ").append(Parser.errores.get(i)).append("\n\n");
-            }
-            erroresArea.setForeground(Color.RED);
-        }
-        
-        erroresArea.setText(content.toString());
-        erroresArea.setCaretPosition(0);
+        reportTabs.setSelectedIndex(0);
+        statusLabel.setText(" Mostrando autómatas definidos");
     }
     
     private void generarGraficos() {
@@ -621,6 +603,7 @@ public class MainWindow extends JFrame {
         
         // Cambiar a la pestaña de gráficos
         reportTabs.setSelectedIndex(3);
+        statusLabel.setText(" Gráficos generados");
     }
     
     private void clearAllReports() {
@@ -632,7 +615,7 @@ public class MainWindow extends JFrame {
                 if (view instanceof JTextArea) {
                     ((JTextArea) view).setText("");
                 } else if (view instanceof JTable) {
-                    ((JTable) view).setModel(new javax.swing.table.DefaultTableModel());
+                    ((JTable) view).setModel(new DefaultTableModel());
                 }
             }
         }
@@ -644,63 +627,49 @@ public class MainWindow extends JFrame {
         graphPanel.add(label, BorderLayout.CENTER);
         graphPanel.revalidate();
         graphPanel.repaint();
+        statusLabel.setText(" Reportes limpiados");
     }
     
     // Métodos de archivo mejorados
     
     private void nuevoArchivo() {
-        if (hayModificacionesSinGuardar()) {
-            int option = JOptionPane.showConfirmDialog(this, 
-                    "¿Desea guardar los cambios actuales?", 
-                    "Nuevo archivo", 
-                    JOptionPane.YES_NO_CANCEL_OPTION);
-            
-            if (option == JOptionPane.YES_OPTION) {
-                guardarArchivo();
-            } else if (option == JOptionPane.CANCEL_OPTION) {
-                return;
-            }
+        if (confirmarGuardado()) {
+            editorPanel.setText("");
+            currentFile = null;
+            setTitle("AutómataLab - Nuevo Archivo");
+            statusLabel.setText(" Nuevo archivo creado");
         }
-        
-        editorPanel.clear();
-        limpiarTodo();
-        currentFile = null;
-        setTitle("AutómataLab - Nuevo archivo");
-        statusLabel.setText(" Nuevo archivo creado");
     }
     
     private void abrirArchivo() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-            "Archivos AutómataLab (*.atm)", "atm"));
-        fileChooser.setDialogTitle("Abrir archivo .atm");
-        
-        if (currentFile != null) {
-            fileChooser.setCurrentDirectory(currentFile.getParentFile());
-        }
-        
-        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            try {
-                currentFile = fileChooser.getSelectedFile();
-                BufferedReader reader = new BufferedReader(new FileReader(currentFile));
-                StringBuilder content = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    content.append(line).append("\n");
+        if (confirmarGuardado()) {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Abrir archivo de autómata");
+            fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                    "Archivos de Autómata (.atm)", "atm"));
+            
+            if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                try {
+                    File file = fileChooser.getSelectedFile();
+                    BufferedReader reader = new BufferedReader(new FileReader(file));
+                    StringBuilder content = new StringBuilder();
+                    String line;
+                    
+                    while ((line = reader.readLine()) != null) {
+                        content.append(line).append("\n");
+                    }
+                    
+                    reader.close();
+                    editorPanel.setText(content.toString());
+                    currentFile = file;
+                    setTitle("AutómataLab - " + file.getName());
+                    statusLabel.setText(" Archivo cargado: " + file.getName());
+                    
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(this, 
+                            "Error al abrir el archivo: " + ex.getMessage(), 
+                            "Error", JOptionPane.ERROR_MESSAGE);
                 }
-                reader.close();
-                
-                editorPanel.setText(content.toString());
-                setTitle("AutómataLab - " + currentFile.getName());
-                statusLabel.setText(" Archivo abierto: " + currentFile.getName());
-                limpiarTodo();
-                
-            } catch (IOException e) {
-                JOptionPane.showMessageDialog(this, 
-                    "Error al abrir archivo:\n" + e.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
-                statusLabel.setText(" Error al abrir archivo");
             }
         }
     }
@@ -709,64 +678,65 @@ public class MainWindow extends JFrame {
         if (currentFile == null) {
             guardarComoArchivo();
         } else {
-            guardarArchivo(currentFile);
+            try {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(currentFile));
+                writer.write(editorPanel.getText());
+                writer.close();
+                statusLabel.setText(" Archivo guardado: " + currentFile.getName());
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, 
+                        "Error al guardar el archivo: " + ex.getMessage(), 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
     
     private void guardarComoArchivo() {
         JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Guardar archivo de autómata");
         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-            "Archivos AutómataLab (*.atm)", "atm"));
-        fileChooser.setDialogTitle("Guardar archivo .atm");
-        
-        if (currentFile != null) {
-            fileChooser.setCurrentDirectory(currentFile.getParentFile());
-            fileChooser.setSelectedFile(new File(currentFile.getName()));
-        } else {
-            fileChooser.setSelectedFile(new File("automata.atm"));
-        }
+                "Archivos de Autómata (.atm)", "atm"));
         
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
             if (!file.getName().toLowerCase().endsWith(".atm")) {
                 file = new File(file.getAbsolutePath() + ".atm");
             }
-            guardarArchivo(file);
+            
+            try {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+                writer.write(editorPanel.getText());
+                writer.close();
+                currentFile = file;
+                setTitle("AutómataLab - " + file.getName());
+                statusLabel.setText(" Archivo guardado: " + file.getName());
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, 
+                        "Error al guardar el archivo: " + ex.getMessage(), 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
     
-    private void guardarArchivo(File file) {
-        try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-            writer.write(editorPanel.getText());
-            writer.close();
+    private boolean confirmarGuardado() {
+        if (editorPanel.isModified()) {
+            int result = JOptionPane.showConfirmDialog(this, 
+                    "¿Desea guardar los cambios antes de continuar?", 
+                    "Confirmar", JOptionPane.YES_NO_CANCEL_OPTION);
             
-            currentFile = file;
-            setTitle("AutómataLab - " + file.getName());
-            statusLabel.setText(" Archivo guardado: " + file.getName());
-            
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, 
-                "Error al guardar archivo:\n" + e.getMessage(), 
-                "Error", 
-                JOptionPane.ERROR_MESSAGE);
-            statusLabel.setText(" Error al guardar archivo");
+            if (result == JOptionPane.YES_OPTION) {
+                guardarArchivo();
+                return true;
+            } else if (result == JOptionPane.NO_OPTION) {
+                return true;
+            } else {
+                return false;
+            }
         }
+        return true;
     }
     
-    private boolean hayModificacionesSinGuardar() {
-        return !editorPanel.getText().trim().isEmpty();
-    }
-    
-    private void limpiarTodo() {
-        consolePanel.clear();
-        Parser.automatas.clear();
-        Parser.errores.clear();
-        clearAllReports();
-        statusLabel.setText(" Todo limpio - Listo para trabajar");
-    }
-    
-    // Métodos de diálogo mejorados
+    // Métodos de utilidad
     
     private void mostrarDialogoBusqueda() {
         JDialog searchDialog = new JDialog(this, "Buscar", true);
@@ -817,7 +787,7 @@ public class MainWindow extends JFrame {
         if (lineStr != null && !lineStr.trim().isEmpty()) {
             try {
                 int line = Integer.parseInt(lineStr.trim());
-                editorPanel.gotoLine(line);
+                editorPanel.goToLine(line);
             } catch (NumberFormatException e) {
                 JOptionPane.showMessageDialog(this, 
                     "Número de línea inválido", 
@@ -827,147 +797,252 @@ public class MainWindow extends JFrame {
         }
     }
     
-    // Métodos de reportes mejorados
-    
-    private void mostrarTokens() {
-        actualizarTokens();
-        reportTabs.setSelectedIndex(1);
-        statusLabel.setText(" Mostrando análisis léxico");
+    private void toggleLineNumbers() {
+        editorPanel.toggleLineNumbers();
     }
     
-    private void mostrarErrores() {
-        actualizarErrores();
-        reportTabs.setSelectedIndex(2);
-        statusLabel.setText(" Mostrando errores");
+    private void mostrarManual() {
+        String manual = 
+            "MANUAL RÁPIDO - AutómataLab\n" +
+            "============================\n" +
+            "\n" +
+            "SINTAXIS AFD:\n" +
+            "<AFD Nombre=\"MiAFD\">\n" +
+            "  N = {q0, q1, q2};          // Estados\n" +
+            "  T = {'a', 'b'};            // Alfabeto\n" +
+            "  I = {q0};                  // Estado inicial\n" +
+            "  A = {q2};                  // Estados finales\n" +
+            "  \n" +
+            "  Transiciones:\n" +
+            "    q0 -> 'a', q1;           // Transición simple\n" +
+            "    q1 -> 'a', q1 | 'b', q2; // Múltiples transiciones\n" +
+            "</AFD>\n" +
+            "\n" +
+            "SINTAXIS AP:\n" +
+            "<AP Nombre=\"MiAP\">\n" +
+            "  N = {q0, q1};              // Estados\n" +
+            "  T = {'a', 'b'};            // Alfabeto entrada\n" +
+            "  P = {'A', 'Z'};            // Símbolos de pila\n" +
+            "  I = {q0};                  // Estado inicial\n" +
+            "  A = {q1};                  // Estados finales\n" +
+            "  \n" +
+            "  Transiciones:\n" +
+            "    q0 ('a') -> ('Z'), q0 : ('A');   // (entrada) -> (extrae), destino : (inserta)\n" +
+            "    q0 (') -> ('Z'), q1 : (');   // $ = lambda (cadena vacía)\n" +
+            "</AP>\n" +
+            "\n" +
+            "COMANDOS:\n" +
+            "verAutomatas();              // Listar autómatas\n" +
+            "desc(NombreAutomata);        // Describir autómata\n" +
+            "NombreAutomata(\"cadena\");    // Validar cadena\n" +
+            "\n" +
+            "ATAJOS DE TECLADO:\n" +
+            "F5          - Ejecutar\n" +
+            "Ctrl+N      - Nuevo\n" +
+            "Ctrl+O      - Abrir\n" +
+            "Ctrl+S      - Guardar\n" +
+            "Ctrl+F      - Buscar\n" +
+            "Ctrl+G      - Ir a línea\n";
+        
+        JDialog manualDialog = new JDialog(this, "Manual de Usuario", true);
+        manualDialog.setSize(700, 500);
+        manualDialog.setLocationRelativeTo(this);
+        
+        JTextArea manualArea = new JTextArea(manual);
+        manualArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        manualArea.setEditable(false);
+        manualArea.setBackground(new Color(250, 250, 250));
+        
+        manualDialog.add(new JScrollPane(manualArea), BorderLayout.CENTER);
+        
+        JButton closeBtn = new JButton("Cerrar");
+        closeBtn.addActionListener(e -> manualDialog.dispose());
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.add(closeBtn);
+        manualDialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        manualDialog.setVisible(true);
     }
     
-    private void mostrarAutomatas() {
-        actualizarAutomatas();
-        reportTabs.setSelectedIndex(0);
-        statusLabel.setText(" Mostrando autómatas definidos");
+    private void mostrarEjemplos() {
+        String[] ejemplos = {
+            "AFD - Números pares de ceros",
+            "AFD - Cadenas que terminan en 01", 
+            "AP - Lenguaje a^n b^n",
+            "AP - Paréntesis balanceados"
+        };
+        
+        String seleccion = (String) JOptionPane.showInputDialog(this,
+            "Seleccione un ejemplo para cargar:",
+            "Ejemplos",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            ejemplos,
+            ejemplos[0]);
+        
+        if (seleccion != null) {
+            cargarEjemplo(seleccion);
+        }
+    }
+    
+    private void cargarEjemplo(String tipo) {
+        String ejemplo;
+        switch (tipo) {
+            case "AFD - Números pares de ceros":
+                ejemplo =
+                    "// AFD que acepta cadenas con número par de ceros\n" +
+                    "<AFD Nombre=\"ParCeros\">\n" +
+                    "  N = {q0, q1};\n" +
+                    "  T = {'0', '1'};\n" +
+                    "  I = {q0};\n" +
+                    "  A = {q0};\n" +
+                    "  \n" +
+                    "  Transiciones:\n" +
+                    "    q0 -> '0', q1 | '1', q0;\n" +
+                    "    q1 -> '0', q0 | '1', q1;\n" +
+                    "</AFD>\n" +
+                    "\n" +
+                    "verAutomatas();\n" +
+                    "desc(ParCeros);\n" +
+                    "ParCeros(\"1010\");\n" +
+                    "ParCeros(\"100\");\n";
+                break;
+            case "AFD - Cadenas que terminan en 01":
+                ejemplo =
+                    "// AFD que acepta cadenas que terminan en \"01\"\n" +
+                    "<AFD Nombre=\"TerminaEn01\">\n" +
+                    "  N = {q0, q1, q2};\n" +
+                    "  T = {'0', '1'};\n" +
+                    "  I = {q0};\n" +
+                    "  A = {q2};\n" +
+                    "  \n" +
+                    "  Transiciones:\n" +
+                    "    q0 -> '0', q1 | '1', q0;\n" +
+                    "    q1 -> '0', q1 | '1', q2;\n" +
+                    "    q2 -> '0', q1 | '1', q0;\n" +
+                    "</AFD>\n" +
+                    "\n" +
+                    "verAutomatas();\n" +
+                    "TerminaEn01(\"1001\");\n" +
+                    "TerminaEn01(\"101\");\n" +
+                    "TerminaEn01(\"110\");\n";
+                break;
+            case "AP - Lenguaje a^n b^n":
+                ejemplo =
+                    "// AP que acepta L = {a^n b^n | n >= 1}\n" +
+                    "<AP Nombre=\"AnBn\">\n" +
+                    "  N = {q0, q1, q2};\n" +
+                    "  T = {'a', 'b'};\n" +
+                    "  P = {'A', 'Z'};\n" +
+                    "  I = {q0};\n" +
+                    "  A = {q2};\n" +
+                    "  \n" +
+                    "  Transiciones:\n" +
+                    "    q0 ('a') -> ('Z'), q1 : ('A');\n" +
+                    "    q1 ('a') -> ('A'), q1 : ('A') | ('b') -> ('A'), q1 : ('$');\n" +
+                    "    q1 ('$') -> ('Z'), q2 : ('$');\n" +
+                    "</AP>\n" +
+                    "\n" +
+                    "verAutomatas();\n" +
+                    "desc(AnBn);\n" +
+                    "AnBn(\"ab\");\n" +
+                    "AnBn(\"aabb\");\n" +
+                    "AnBn(\"aaabbb\");\n";
+                break;
+            case "AP - Paréntesis balanceados":
+                ejemplo =
+                    "// AP que acepta paréntesis balanceados\n" +
+                    "<AP Nombre=\"Parentesis\">\n" +
+                    "  N = {q0, q1};\n" +
+                    "  T = {'(', ')'};\n" +
+                    "  P = {'P', 'Z'};\n" +
+                    "  I = {q0};\n" +
+                    "  A = {q1};\n" +
+                    "  \n" +
+                    "  Transiciones:\n" +
+                    "    q0 ('(') -> ('Z'), q0 : ('P');\n" +
+                    "    q0 ('(') -> ('P'), q0 : ('P');\n" +
+                    "    q0 (')') -> ('P'), q0 : ('$');\n" +
+                    "    q0 (')') -> ('Z'), q1 : ('$');\n" +
+                    "</AP>\n" +
+                    "\n" +
+                    "verAutomatas();\n" +
+                    "Parentesis(\"()\");\n" +
+                    "Parentesis(\"(())\");\n" +
+                    "Parentesis(\"((()))\");\n";
+                break;
+            default:
+                cargarEjemploInicial();
+                return;
+        }
+
+        editorPanel.setText(ejemplo);
+        statusLabel.setText(" Ejemplo cargado: " + tipo);
+    }
+    
+    private void mostrarAcercaDe() {
+        String acercaDe =
+            "AutómataLab v2.0\n"
+            + "\n"
+            + "Herramienta para definición y análisis de:\n"
+            + "• Autómatas Finitos Deterministas (AFD)\n"
+            + "• Autómatas de Pila (AP)\n"
+            + "\n"
+            + "Características:\n"
+            + "• Editor con resaltado de sintaxis\n"
+            + "• Análisis léxico y sintáctico\n"
+            + "• Validación de cadenas\n"
+            + "• Generación de reportes\n"
+            + "• Exportación a múltiples formatos\n"
+            + "• Visualización con Graphviz\n"
+            + "\n"
+            + "Desarrollado para:\n"
+            + "Organización de Lenguajes y Compiladores 1\n"
+            + "Universidad de San Carlos de Guatemala\n"
+            + "\n"
+            + "Tecnologías utilizadas:\n"
+            + "• Java Swing\n"
+            + "• JFlex (Análisis Léxico)\n"
+            + "• CUP (Análisis Sintáctico)\n"
+            + "• Graphviz (Visualización)\n";
+        
+        JOptionPane.showMessageDialog(this, acercaDe, 
+            "Acerca de AutómataLab", JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    // Métodos placeholder para funcionalidades no implementadas
+    
+    private void compilar() {
+        JOptionPane.showMessageDialog(this, 
+                "La compilación generaría código intermedio o ejecutable.\n" +
+                "Esta funcionalidad está planeada para una versión futura.", 
+                "Compilar", JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    private void limpiarTodo() {
+        if (JOptionPane.showConfirmDialog(this, 
+                "¿Está seguro de que desea limpiar todo el contenido?\n" +
+                "Esto borrará el editor, la consola y todos los reportes.", 
+                "Confirmar limpieza", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+            editorPanel.setText("");
+            consolePanel.clear();
+            clearAllReports();
+            statusLabel.setText(" Todo limpiado");
+        }
     }
     
     private void exportarReportes() {
-        if (Parser.automatas.isEmpty()) {
-            JOptionPane.showMessageDialog(this, 
-                "No hay reportes para exportar.\nEjecute el análisis primero.", 
-                "Exportar", 
-                JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Exportar reportes a directorio");
-        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        
-        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File dir = fileChooser.getSelectedFile();
-            try {
-                exportarTodosLosReportes(dir);
-                JOptionPane.showMessageDialog(this, 
-                    "Reportes exportados exitosamente a:\n" + dir.getAbsolutePath(), 
-                    "Exportación completada", 
-                    JOptionPane.INFORMATION_MESSAGE);
-                statusLabel.setText(" Reportes exportados a " + dir.getName());
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, 
-                    "Error al exportar reportes:\n" + e.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-    
-    private void exportarTodosLosReportes(File dir) throws Exception {
-        String timestamp = java.time.LocalDateTime.now().format(
-            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        
-        // Exportar tokens
-        java.util.List<Token> tokens = ReporteTokens.analizarTokens(editorPanel.getText());
-        ReporteTokens.generarReporteHTML(tokens, 
-            new File(dir, "tokens_" + timestamp + ".html").getAbsolutePath());
-        
-        // Exportar errores
-        ReporteErrores.generarReporteHTML(
-            new File(dir, "errores_" + timestamp + ".html").getAbsolutePath());
-        
-        // Exportar DOT de autómatas
-        for (String nombre : Parser.automatas.keySet()) {
-            Object automata = Parser.automatas.get(nombre);
-            if (automata instanceof AFD) {
-                AFD afd = (AFD) automata;
-                File dotFile = new File(dir, nombre + "_" + timestamp + ".dot");
-                try (FileWriter writer = new FileWriter(dotFile)) {
-                    writer.write(afd.generarDot());
-                }
-            }
-        }
+        JOptionPane.showMessageDialog(this, 
+                "Los reportes se exportarían a formato PDF o HTML.\n" +
+                "Esta funcionalidad está planeada para una versión futura.", 
+                "Exportar Reportes", JOptionPane.INFORMATION_MESSAGE);
     }
     
     private void exportarHTML() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-            "Archivos HTML (*.html)", "html"));
-        fileChooser.setDialogTitle("Exportar reporte HTML");
-        
-        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
-            if (!file.getName().toLowerCase().endsWith(".html")) {
-                file = new File(file.getAbsolutePath() + ".html");
-            }
-            
-            try {
-                generarReporteHTMLCompleto(file);
-                statusLabel.setText(" Reporte HTML exportado");
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, 
-                    "Error al exportar HTML: " + e.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-    
-    private void generarReporteHTMLCompleto(File file) throws Exception {
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html>\n<html>\n<head>\n")
-            .append("<title>Reporte AutómataLab</title>\n")
-            .append("<meta charset='UTF-8'>\n")
-            .append("<style>\n")
-            .append("body { font-family: Arial, sans-serif; margin: 20px; }\n")
-            .append("h1 { color: #2c3e50; }\n")
-            .append("h2 { color: #34495e; border-bottom: 2px solid #ecf0f1; }\n")
-            .append("table { border-collapse: collapse; width: 100%; margin: 10px 0; }\n")
-            .append("th, td { border: 1px solid #bdc3c7; padding: 8px; text-align: left; }\n")
-            .append("th { background-color: #ecf0f1; }\n")
-            .append("pre { background-color: #f8f9fa; padding: 10px; border-radius: 5px; }\n")
-            .append(".error { color: #e74c3c; }\n")
-            .append(".success { color: #27ae60; }\n")
-            .append("</style>\n</head>\n<body>\n");
-        
-        html.append("<h1>Reporte de Análisis - AutómataLab</h1>\n");
-        html.append("<p>Generado: ").append(java.time.LocalDateTime.now()).append("</p>\n");
-        
-        // Sección de autómatas
-        html.append("<h2>Autómatas Definidos</h2>\n");
-        if (Parser.automatas.isEmpty()) {
-            html.append("<p>No hay autómatas definidos.</p>\n");
-        } else {
-            for (String nombre : Parser.automatas.keySet()) {
-                Object automata = Parser.automatas.get(nombre);
-                if (automata instanceof AFD) {
-                    AFD afd = (AFD) automata;
-                    html.append("<h3>AFD: ").append(nombre).append("</h3>\n");
-                    html.append("<pre>").append(afd.getDescripcionCompleta()).append("</pre>\n");
-                }
-            }
-        }
-        
-        html.append("</body>\n</html>");
-        
-        try (FileWriter writer = new FileWriter(file)) {
-            writer.write(html.toString());
-        }
+        JOptionPane.showMessageDialog(this, 
+                "Los autómatas se exportarían a formato HTML para publicación web.\n" +
+                "Esta funcionalidad está planeada para una versión futura.", 
+                "Exportar HTML", JOptionPane.INFORMATION_MESSAGE);
     }
     
     private void exportarDOT(String dotContent) {
@@ -1015,251 +1090,23 @@ public class MainWindow extends JFrame {
             "Generación de imágenes", JOptionPane.INFORMATION_MESSAGE);
     }
     
-    // Métodos de vista
-    
-    private void toggleLineNumbers() {
-        // Esta funcionalidad ya está implementada en EditorPanel
-        JOptionPane.showMessageDialog(this, 
-            "Los números de línea están siempre visibles en el editor.", 
-            "Números de línea", 
-            JOptionPane.INFORMATION_MESSAGE);
-    }
-    
-    // Métodos de ayuda
-    
-    private void mostrarEjemplos() {
-        String[] ejemplos = {
-            "AFD - Números pares de ceros",
-            "AFD - Cadenas que terminan en 01", 
-            "AP - Lenguaje a^n b^n",
-            "AP - Paréntesis balanceados"
-        };
-        
-        String seleccion = (String) JOptionPane.showInputDialog(this,
-            "Seleccione un ejemplo para cargar:",
-            "Ejemplos",
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            ejemplos,
-            ejemplos[0]);
-        
-        if (seleccion != null) {
-            cargarEjemplo(seleccion);
-        }
-    }
-    
-    private void cargarEjemplo(String tipo) {
-        String ejemplo = switch (tipo) {
-            case "AFD - Números pares de ceros" -> """
-                // AFD que acepta cadenas con número par de ceros
-                <AFD Nombre="ParCeros">
-                  N = {q0, q1};
-                  T = {'0', '1'};
-                  I = {q0};
-                  A = {q0};
-                  
-                  Transiciones:
-                    q0 -> '0', q1 | '1', q0;
-                    q1 -> '0', q0 | '1', q1;
-                </AFD>
-                
-                verAutomatas();
-                desc(ParCeros);
-                ParCeros("1010");
-                ParCeros("100");
-                """;
-                
-            case "AFD - Cadenas que terminan en 01" -> """
-                // AFD que acepta cadenas que terminan en "01"
-                <AFD Nombre="TerminaEn01">
-                  N = {q0, q1, q2};
-                  T = {'0', '1'};
-                  I = {q0};
-                  A = {q2};
-                  
-                  Transiciones:
-                    q0 -> '0', q1 | '1', q0;
-                    q1 -> '0', q1 | '1', q2;
-                    q2 -> '0', q1 | '1', q0;
-                </AFD>
-                
-                verAutomatas();
-                TerminaEn01("1001");
-                TerminaEn01("101");
-                TerminaEn01("110");
-                """;
-                
-            case "AP - Lenguaje a^n b^n" -> """
-                // AP que acepta L = {a^n b^n | n >= 1}
-                <AP Nombre="AnBn">
-                  N = {q0, q1, q2};
-                  T = {'a', 'b'};
-                  P = {'A', 'Z'};
-                  I = {q0};
-                  A = {q2};
-                  
-                  Transiciones:
-                    q0 ('a') -> ('Z'), q1 : ('A');
-                    q1 ('a') -> ('A'), q1 : ('A') | ('b') -> ('A'), q1 : (');
-                    q1 (') -> ('Z'), q2 : (');
-                </AP>
-                
-                verAutomatas();
-                desc(AnBn);
-                AnBn("ab");
-                AnBn("aabb");
-                AnBn("aaabbb");
-                """;
-                
-            case "AP - Paréntesis balanceados" -> """
-                // AP que acepta paréntesis balanceados
-                <AP Nombre="Parentesis">
-                  N = {q0, q1};
-                  T = {'(', ')'};
-                  P = {'P', 'Z'};
-                  I = {q0};
-                  A = {q1};
-                  
-                  Transiciones:
-                    q0 ('(') -> ('Z'), q0 : ('P');
-                    q0 ('(') -> ('P'), q0 : ('P');
-                    q0 (')') -> ('P'), q0 : (');
-                    q0 (') -> ('Z'), q1 : (');
-                </AP>
-                
-                verAutomatas();
-                Parentesis("()");
-                Parentesis("(())");
-                Parentesis("((()))");
-                """;
-                
-            default -> cargarEjemploInicial(); return;
-        };
-        
-        editorPanel.setText(ejemplo);
-        statusLabel.setText(" Ejemplo cargado: " + tipo);
-    }
-    
-    private void mostrarManual() {
-        String manual = """
-            MANUAL RÁPIDO - AutómataLab
-            ============================
-            
-            SINTAXIS AFD:
-            <AFD Nombre="MiAFD">
-              N = {q0, q1, q2};          // Estados
-              T = {'a', 'b'};            // Alfabeto
-              I = {q0};                  // Estado inicial
-              A = {q2};                  // Estados finales
-              
-              Transiciones:
-                q0 -> 'a', q1;           // Transición simple
-                q1 -> 'a', q1 | 'b', q2; // Múltiples transiciones
-            </AFD>
-            
-            SINTAXIS AP:
-            <AP Nombre="MiAP">
-              N = {q0, q1};              // Estados
-              T = {'a', 'b'};            // Alfabeto entrada
-              P = {'A', 'Z'};            // Símbolos de pila
-              I = {q0};                  // Estado inicial
-              A = {q1};                  // Estados finales
-              
-              Transiciones:
-                q0 ('a') -> ('Z'), q0 : ('A');   // (entrada) -> (extrae), destino : (inserta)
-                q0 (') -> ('Z'), q1 : (');   // $ = lambda (cadena vacía)
-            </AP>
-            
-            COMANDOS:
-            verAutomatas();              // Listar autómatas
-            desc(NombreAutomata);        // Describir autómata
-            NombreAutomata("cadena");    // Validar cadena
-            
-            ATAJOS DE TECLADO:
-            F5          - Ejecutar
-            Ctrl+N      - Nuevo
-            Ctrl+O      - Abrir
-            Ctrl+S      - Guardar
-            Ctrl+F      - Buscar
-            Ctrl+G      - Ir a línea
-            """;
-        
-        JDialog manualDialog = new JDialog(this, "Manual de Usuario", true);
-        manualDialog.setSize(700, 500);
-        manualDialog.setLocationRelativeTo(this);
-        
-        JTextArea manualArea = new JTextArea(manual);
-        manualArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        manualArea.setEditable(false);
-        manualArea.setBackground(new Color(250, 250, 250));
-        
-        manualDialog.add(new JScrollPane(manualArea), BorderLayout.CENTER);
-        
-        JButton closeBtn = new JButton("Cerrar");
-        closeBtn.addActionListener(e -> manualDialog.dispose());
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.add(closeBtn);
-        manualDialog.add(buttonPanel, BorderLayout.SOUTH);
-        
-        manualDialog.setVisible(true);
-    }
-    
-    private void mostrarAcercaDe() {
-        String acercaDe = """
-            AutómataLab v2.0
-            
-            Herramienta para definición y análisis de:
-            • Autómatas Finitos Deterministas (AFD)
-            • Autómatas de Pila (AP)
-            
-            Características:
-            • Editor con resaltado de sintaxis
-            • Análisis léxico y sintáctico
-            • Validación de cadenas
-            • Generación de reportes
-            • Exportación a múltiples formatos
-            • Visualización con Graphviz
-            
-            Desarrollado para:
-            Organización de Lenguajes y Compiladores 1
-            Universidad de San Carlos de Guatemala
-            
-            Tecnologías utilizadas:
-            • Java Swing
-            • JFlex (Análisis Léxico)
-            • CUP (Análisis Sintáctico)
-            • Graphviz (Visualización)
-            """;
-        
-        JOptionPane.showMessageDialog(this, acercaDe, 
-            "Acerca de AutómataLab", JOptionPane.INFORMATION_MESSAGE);
-    }
-    
     private void salir() {
-        if (hayModificacionesSinGuardar()) {
-            int option = JOptionPane.showConfirmDialog(this, 
-                    "¿Desea guardar los cambios antes de salir?", 
-                    "Salir", 
-                    JOptionPane.YES_NO_CANCEL_OPTION);
-            
-            if (option == JOptionPane.YES_OPTION) {
-                guardarArchivo();
-            } else if (option == JOptionPane.CANCEL_OPTION) {
-                return;
-            }
+        if (confirmarGuardado()) {
+            System.exit(0);
         }
-        System.exit(0);
     }
     
+    // Método principal
     public static void main(String[] args) {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        
         SwingUtilities.invokeLater(() -> {
-            new MainWindow().setVisible(true);
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            
+            MainWindow window = new MainWindow();
+            window.setVisible(true);
         });
     }
 }

@@ -13,6 +13,7 @@ public class EditorPanel extends JPanel {
     private JLabel statusLabel;
     private JScrollPane scrollPane;
     private UndoManager undoManager;
+    private boolean modified = false;
     
     public EditorPanel() {
         setLayout(new BorderLayout());
@@ -27,7 +28,34 @@ public class EditorPanel extends JPanel {
         
         // Configurar undo manager
         undoManager = new UndoManager();
-        textArea.getDocument().addUndoableEditListener(undoManager);
+        textArea.getDocument().addUndoableEditListener(new UndoableEditListener() {
+            @Override
+            public void undoableEditHappened(UndoableEditEvent e) {
+                undoManager.addEdit(e.getEdit());
+                modified = true;
+            }
+        });
+        
+        // Listener para cambios en el documento
+        textArea.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                modified = true;
+                SwingUtilities.invokeLater(() -> updateLineNumbers());
+            }
+            
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                modified = true;
+                SwingUtilities.invokeLater(() -> updateLineNumbers());
+            }
+            
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                modified = true;
+                SwingUtilities.invokeLater(() -> updateLineNumbers());
+            }
+        });
         
         // Crear área de números de línea
         lineNumbers = new JTextArea("1");
@@ -59,24 +87,6 @@ public class EditorPanel extends JPanel {
     }
     
     private void setupListeners() {
-        // Listener para actualizar números de línea
-        textArea.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                SwingUtilities.invokeLater(() -> updateLineNumbers());
-            }
-            
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                SwingUtilities.invokeLater(() -> updateLineNumbers());
-            }
-            
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                SwingUtilities.invokeLater(() -> updateLineNumbers());
-            }
-        });
-        
         // Listener para posición del cursor
         textArea.addCaretListener(new CaretListener() {
             @Override
@@ -189,7 +199,8 @@ public class EditorPanel extends JPanel {
     
     public void setText(String text) {
         textArea.setText(text);
-        // Programar actualización para después de que se complete el setText
+        modified = false;
+        undoManager.discardAllEdits();
         SwingUtilities.invokeLater(() -> {
             updateLineNumbers();
             updateStatusBar();
@@ -198,6 +209,8 @@ public class EditorPanel extends JPanel {
     
     public void clear() {
         textArea.setText("");
+        modified = false;
+        undoManager.discardAllEdits();
         SwingUtilities.invokeLater(() -> {
             updateLineNumbers();
             updateStatusBar();
@@ -323,7 +336,7 @@ public class EditorPanel extends JPanel {
         }
     }
     
-    // Métodos para undo/redo corregidos
+    // Métodos para undo/redo
     public void undo() {
         try {
             if (undoManager.canUndo()) {
@@ -350,5 +363,20 @@ public class EditorPanel extends JPanel {
     
     public boolean canRedo() {
         return undoManager.canRedo();
+    }
+    
+    // Métodos nuevos requeridos por MainWindow
+    public boolean isModified() {
+        return modified;
+    }
+    
+    public void toggleLineNumbers() {
+        boolean visible = lineNumbers.isVisible();
+        lineNumbers.setVisible(!visible);
+        scrollPane.revalidate();
+    }
+    
+    public void goToLine(int line) {
+        gotoLine(line);
     }
 }
